@@ -1,0 +1,79 @@
+Assignment TWO for csc464/564
+===
+
+**Jialin Li** 002250729
+
+**Sun Jian** 002244864
+
+---
+
+**Build commands**
+
+
+- make
+  
+- make clean
+   
+- make run
+
+
+This program has both "local" functionality and "online" functionality
+---
+
+## Local 
+
+All local commands **must** be prefixed with __!__ followed by a blank space.
+
+*Example:*
+> ! diff t1.txt t2.txt
+
+#### commands:
+> ProgramName    *[program args]*
+
+  Will try to run the program in /usr/bin, /usr or absolute path.
+
+> & ProgramName   *[program args]*
+
+  Same as above but return control to user asap, and run the program
+  in the background.
+
+  Result will be print on screen when it become availble.
+
+> more   *[file location]*
+
+  Will print the content of the file on screen.
+  Printing height and width are specified in the file shconfig.
+
+  Enter blank space while displaying to turn to the next page.
+
+> exit
+
+  Will exit the program.
+
+
+## Online
+
+All commands **not** prefix with **!** will be send as a payload online.
+
+Connection will be established based on RHOST and RPORT in shconfig.
+
+Online commands will try to establish a TCP connection with POSIX Api, send the payload and print out server's response(s).
+
+*Example:*
+>hello_from_client
+
+#### Background running
+All online commands prefixed by **&** will wait the response in the background while giving back control to user asap.
+
+Server's response(s) will be print out piece by piece.
+
+### Additional command
+
+> ! keepalive
+
+Cache the latest connection to the server. 
+use the same connection for all following online commands.
+
+> ! close
+
+Close and clear the cached connection. Return program's behavior to normal.
