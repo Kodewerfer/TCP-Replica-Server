@@ -1,4 +1,4 @@
-#include "lib.h"
+#include "lib.hpp"
 
 namespace Lib {
 int readline(int fd, char *buf_str, size_t max) {

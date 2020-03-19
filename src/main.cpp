@@ -7,7 +7,7 @@
  * Sun Jian 002244864
  **/
 
-#include "main.h"
+#include "main.hpp"
 
 int main(int arg, char *argv_main[], char *envp[]) {
     const int iShPort{9000};
@@ -20,7 +20,7 @@ int main(int arg, char *argv_main[], char *envp[]) {
 
         PrintMessage(iShPort, iFiPort);
 
-        StartServer(ServSockets);
+        StartServer(ServSockets, DoShellCallback, DoFileCallback);
 
     } catch (char const *msg) {
         Utils::buoy(msg);
@@ -44,7 +44,9 @@ ServerSockets InitServer() {
     return {iShServSocket, iFiServSocket};
 }
 
-void StartServer(ServerSockets ServSockets) {
+void StartServer(ServerSockets ServSockets,
+                 std::function<void(const int)> ShellCallback,
+                 std::function<void(const int)> FileCallback) {
     if (ServSockets.shell < 0 || ServSockets.file < 0) {
         Utils::buoy("Server unable to start.");
     }
@@ -62,7 +64,7 @@ void StartServer(ServerSockets ServSockets) {
         Utils::buoy("Failed to accept client");
     }
 
-    DoShell(iShClientSocket);
+    ShellCallback(iShClientSocket);
     close(iShClientSocket);
 
     shutdown(iShClientSocket, 1);
@@ -74,7 +76,7 @@ void PrintMessage(const int iSh, const int iFi) {
     Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
 }
 
-void DoShell(const int iServFD) {
+void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
     const char *ack = "ACK: ";
@@ -95,5 +97,7 @@ void DoShell(const int iServFD) {
     Utils::buoy("Connection closed by client.");
     shutdown(iServFD, 1);
 }
+
+void DoFileCallback(const int iServFD) {}
 
 void SigPipeHandle(int signum) { return; }
