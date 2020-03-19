@@ -8,38 +8,92 @@
  **/
 
 #include "main.h"
-#include "lib.h"
-#include "utils.h"
 
 int main(int arg, char *argv_main[], char *envp[]) {
-    int iShPort{9000};
-    int iFiPort{9001};
+    const int iShPort{9000};
+    const int iFiPort{9001};
 
-    if (!initServer()) {
-        return -1;
+    signal(SIGPIPE, SigPipeHandle);
+
+    try {
+        ServerSockets ServSockets = InitServer();
+
+        PrintMessage(iShPort, iFiPort);
+
+        StartServer(ServSockets);
+
+    } catch (char const *msg) {
+        Utils::buoy(msg);
     }
 
-    printMessage(iShPort, iFiPort);
-
-    doServer();
+    // DoClient();
 
     return 0;
 }
 
-void printMessage(int iSh, int iFi) {
-    std::cout << "###############################################"
-              << "\n"
-              << "\n";
-    std::cout << "- SHFD Shell and file server."
-              << "\n"
-              << "\n";
-    std::cout << "###############################################"
-              << "\n";
+ServerSockets InitServer() {
+    // throw "test";
 
-    std::cout << "Shell Server is listening on port" + iSh << "\n";
-    std::cout << "File Server is listening on port" + iFi << "\n";
+    // init shell server.
+    int iShServSocket{-1};
+    int iFiServSocket{-1};
+
+    iShServSocket = Utils::CreateSocketMaster(9000);
+    iFiServSocket = Utils::CreateSocketMaster(9001);
+
+    return {iShServSocket, iFiServSocket};
 }
 
-bool initServer() { return true; }
+void StartServer(ServerSockets ServSockets) {
+    if (ServSockets.shell < 0 || ServSockets.file < 0) {
+        Utils::buoy("Server unable to start.");
+    }
 
-void doServer() {}
+    int iShClientSocket{-1};
+    sockaddr_in ClientAddr;
+    unsigned int ClientAddrLen = sizeof(ClientAddr);
+
+    // loop accepting
+    iShClientSocket = accept(ServSockets.shell, (sockaddr *)&ClientAddr,
+                             (socklen_t *)&ClientAddrLen);
+    if (iShClientSocket > 0) {
+        Utils::buoy("Shell client incoming");
+    } else {
+        Utils::buoy("Failed to accept client");
+    }
+
+    DoShell(iShClientSocket);
+    close(iShClientSocket);
+
+    shutdown(iShClientSocket, 1);
+}
+
+void PrintMessage(const int iSh, const int iFi) {
+    Utils::buoy("SHFD Shell and file server.");
+    Utils::buoy("Shell Server is listening on port " + std::to_string(iSh));
+    Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
+}
+
+void DoShell(const int iServFD) {
+    const int ALEN = 256;
+    char req[ALEN];
+    const char *ack = "ACK: ";
+    int n;
+
+    while ((n = Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+        if (strcmp(req, "quit") == 0) {
+            printf("Received quit, sending EOF.\n");
+            shutdown(iServFD, 1);
+            return;
+        }
+        send(iServFD, ack, strlen(ack), 0);
+        send(iServFD, req, strlen(req), 0);
+        send(iServFD, "\n", 1, 0);
+    }
+    // read 0 bytes = EOF:
+    // printf("\n");
+    Utils::buoy("Connection closed by client.");
+    shutdown(iServFD, 1);
+}
+
+void SigPipeHandle(int signum) { return; }

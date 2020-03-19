@@ -1,14 +1,14 @@
 ALL: build tidy
 
 run: ALL
-		./rsshell
+		./shfd
 
-build: lib.o utils.o main.o 
+build: lib.o Utils.o main.o 
 		@echo -----------------------
 		@echo "Building sshell..."
 		@echo -----------------------
 
-		g++ lib.o utils.o main.o -o rsshell
+		g++ lib.o Utils.o main.o -o shfd
 
 main.o: ./src/main.cpp
 		@echo -----------------------
@@ -24,12 +24,12 @@ lib.o: ./src/lib.cpp
 
 		g++ -c ./src/lib.cpp
 
-utils.o: ./src/utils.cpp		
+Utils.o: ./src/Utils.cpp		
 		@echo -----------------------
-		@echo Building utils...
+		@echo Building Utils...
 		@echo -----------------------
 
-		g++ -c ./src/utils.cpp
+		g++ -c ./src/Utils.cpp
 
 tidy:   
 	  @echo -----------------------
@@ -42,4 +42,4 @@ clean:
 		@echo "      CLEANING"
 		@echo -----------------------
 
-		rm -r *.o *.out sshell
+		rm -r *.o *.out shfd
