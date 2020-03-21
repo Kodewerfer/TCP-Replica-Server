@@ -1,6 +1,6 @@
 #include "lib.hpp"
 
-namespace Lib {
+namespace lib {
 int readline(int fd, char *buf_str, size_t max) {
     size_t i;
     int begin = 1;
@@ -37,18 +37,21 @@ int readline(int fd, std::string &sLine, size_t max) {
     return i;
 }
 
-std::vector<std::string> SplitBySpace(std::string str) {
-    std::istringstream StreamStr(str);
-    std::vector<std::string> VWords{};
+std::vector<char *> Tokenize(const std::string &sUserInput) {
+    std::istringstream StreamStr(sUserInput);
+    std::vector<char *> VWords;
 
     do {
         std::string Word;
         StreamStr >> Word;
+        char *cstr = (char *)Word.c_str();
+        char *temp = new char(sizeof(cstr));
+        strcpy(temp, cstr);
 
-        if (Word != "") VWords.push_back(Word);
+        if (Word != "") VWords.push_back(temp);
 
     } while (StreamStr);
 
     return VWords;
 }
-}  // namespace Lib
+}  // namespace lib

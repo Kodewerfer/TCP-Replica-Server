@@ -4,7 +4,7 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [{
-      "name": "(gdb) Attach",
+      "name": "Attach",
       "type": "cppdbg",
       "request": "attach",
       "program": "${workspaceFolder}/shfd",
@@ -17,7 +17,7 @@
       }]
     },
     {
-      "name": "(gdb) Launch",
+      "name": "Follow Child",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/shfd",
@@ -30,12 +30,16 @@
       "setupCommands": [{
         "description": "Enable pretty-printing for gdb",
         "text": "-enable-pretty-printing",
-        "ignoreFailures": true
-      }]
-
+        "ignoreFailures": true,
+        // "set":""
+      }, {
+        // flow child
+        "text": "-gdb-set follow-fork-mode child"
+      }],
+      "preLaunchTask": "g++ build active file"
     },
     {
-      "name": "g++ build and debug active file",
+      "name": "Build & Debug",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/shfd",

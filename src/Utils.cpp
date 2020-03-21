@@ -39,10 +39,13 @@ int Utils::CreateSocketMaster(const unsigned short port, const int queue) {
 }
 
 void Utils::buoy(std::string message) {
+    std::time_t result = std::time(nullptr);
+
     if (bRunningBackground) {
         // log
     } else {
         // display to console
-        std::cout << message << "\n";
+        std::cout << std::asctime(std::localtime(&result)) << "  : " << message
+                  << "\n";
     }
 }

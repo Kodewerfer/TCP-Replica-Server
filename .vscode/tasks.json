@@ -5,7 +5,9 @@
       "command": "/usr/bin/g++",
       "args": [
         "-g",
-        "${workspaceFolder}/src/**.cpp",
+        "${workspaceFolder}/src/*.cpp",
+        "-g",
+        "${workspaceFolder}/src/*/*.cpp",
         "-o",
         "${workspaceFolder}/shfd"
       ],

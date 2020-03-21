@@ -31,6 +31,11 @@ int main(int arg, char *argv_main[], char *envp[]) {
     return 0;
 }
 
+/**
+ *
+ * Main logics
+ *
+ **/
 ServerSockets InitServer() {
     // throw "test";
 
@@ -76,28 +81,36 @@ void PrintMessage(const int iSh, const int iFi) {
     Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
 }
 
+/**
+ *
+ * Callback functions
+ *
+ **/
 void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
-    const char *ack = "ACK: ";
-    int n;
 
-    while ((n = Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
-        if (strcmp(req, "quit") == 0) {
-            printf("Received quit, sending EOF.\n");
-            shutdown(iServFD, 1);
-            return;
-        }
-        send(iServFD, ack, strlen(ack), 0);
-        send(iServFD, req, strlen(req), 0);
+    while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+        const std::string sRequest(req);
+
+        std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
+
+        ShellClient NewClient;
+
+        ShellResponse ShellRes{NewClient.RunShellCommand(RequestTokenized)};
+
+        // send(iServFD, req, strlen(req), 0);
         send(iServFD, "\n", 1, 0);
     }
-    // read 0 bytes = EOF:
-    // printf("\n");
     Utils::buoy("Connection closed by client.");
     shutdown(iServFD, 1);
 }
 
 void DoFileCallback(const int iServFD) {}
 
+/**
+ *
+ * Miscs
+ *
+ **/
 void SigPipeHandle(int signum) { return; }

@@ -4,14 +4,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cstring>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
-namespace Lib {
-void SetBackgroundRunning(bool);
+namespace lib {
 int readline(int, char *, size_t);
 int readline(int, std::string &, size_t);
-std::vector<std::string> SplitBySpace(std::string);
-};  // namespace Lib
+std::vector<char *> Tokenize(const std::string &str);
+};  // namespace lib

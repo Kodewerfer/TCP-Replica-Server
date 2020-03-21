@@ -34,3 +34,8 @@
 # project outputs
 shfd
 rsshell
+
+# project testing
+tests/
+t1
+t2
