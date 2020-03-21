@@ -2,13 +2,9 @@
 
 std::vector<std::string> ShellClient::FileNamePrefixs{"/usr/bin/", "/usr/"};
 
-ShellClient::ShellClient() { return; }
+ShellClient::ShellClient() : sLastOutput{"MARK-NO-COMMAND"} {}
 
-ShellResponse ShellClient::RunShellCommand(
-    std::vector<char *> &RequestTokenized) {
-    // initialize default status
-    ShellResponse ReportStr{"DEFAULT", -1, "DEFAULT"};
-
+int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
     // preping the commands
     std::string sUserCommand(RequestTokenized.at(0));
     char **aArgsPtr = RequestTokenized.data();
@@ -26,7 +22,7 @@ ShellResponse ShellClient::RunShellCommand(
     int TheLine[2]{-1};
     if (pipe(TheLine) == -1) {
         // pipe creation error
-        throw "Error Creating the pipe";
+        throw std::string("ERPIP");
     }
 
     // FORKING
@@ -48,28 +44,26 @@ ShellResponse ShellClient::RunShellCommand(
         }
 
         Utils::buoy("execve - program cannot be found");
-        exit(0);
+        exit(-2);
     } else {
         // parent process
 
+        // reset the last output to blank first
+        ResetLastOutput();
+
         // Read the output from the child
-        char ReadBuffer[4096 + 1];
-        memset(ReadBuffer, 0, 4096);
+        char ReadBuffer[1024 + 1];
+        memset(ReadBuffer, 0, 1024);
 
         close(TheLine[1]);
         while (read(TheLine[0], ReadBuffer, sizeof(ReadBuffer)) != 0) {
-            // record the output.
+            // record the output to last output.
             std::string sOutput(ReadBuffer);
-            std::cout << sOutput;
-            memset(ReadBuffer, 0, 4096);
+            sLastOutput = sOutput;
         }
 
         waitpid(iPId, &ExecStat, 0);
-        // Child Return status.
-        ExecStat = WEXITSTATUS(ExecStat);
     }
 
-    return ReportStr;
+    return WEXITSTATUS(ExecStat);
 }
-
-ShellClient::~ShellClient() { return; }

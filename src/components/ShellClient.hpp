@@ -13,22 +13,15 @@
 #include "../Utils.hpp"
 #include "../lib.hpp"
 
-struct ShellResponse {
-    std::string status;
-    int code;
-    std::string message;
-};
-
 class ShellClient {
    private:
     static std::vector<std::string> FileNamePrefixs;
-    std::string sLastOutput{"NO_LAST_COMMAND"};
-    static std::string InterpMessage(ShellResponse &);
+    std::string sLastOutput;
+    void ResetLastOutput() { sLastOutput = ""; }
 
    public:
     ShellClient();
-    std::string GetLastOutput() { return sLastOutput; };
+    std::string &GetLastOutput() { return sLastOutput; };
     //
-    ShellResponse RunShellCommand(std::vector<char *> &);
-    ~ShellClient();
+    int RunShellCommand(std::vector<char *> &);
 };

@@ -42,6 +42,7 @@
     "typeinfo": "cpp",
     "functional": "cpp",
     "iterator": "cpp",
-    "ctime": "cpp"
+    "ctime": "cpp",
+    "map": "cpp"
   }
 }

@@ -15,20 +15,17 @@ int main(int arg, char *argv_main[], char *envp[]) {
 
     signal(SIGPIPE, SigPipeHandle);
 
+    ServerSockets ServSockets;
     try {
-        ServerSockets ServSockets = InitServer();
-
+        ServSockets = InitServer();
         PrintMessage(iShPort, iFiPort);
-
-        StartServer(ServSockets, DoShellCallback, DoFileCallback);
-
     } catch (char const *msg) {
         Utils::buoy(msg);
     }
 
-    // DoClient();
+    StartServer(ServSockets, DoShellCallback, DoFileCallback);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -37,8 +34,6 @@ int main(int arg, char *argv_main[], char *envp[]) {
  *
  **/
 ServerSockets InitServer() {
-    // throw "test";
-
     // init shell server.
     int iShServSocket{-1};
     int iFiServSocket{-1};
@@ -49,36 +44,43 @@ ServerSockets InitServer() {
     return {iShServSocket, iFiServSocket};
 }
 
+void PrintMessage(const int iSh, const int iFi) {
+    Utils::buoy("SHFD Shell and file server.");
+    Utils::buoy("Shell Server is listening on port " + std::to_string(iSh));
+    Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
+}
+
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
     if (ServSockets.shell < 0 || ServSockets.file < 0) {
         Utils::buoy("Server unable to start.");
+        return;
     }
 
-    int iShClientSocket{-1};
-    sockaddr_in ClientAddr;
-    unsigned int ClientAddrLen = sizeof(ClientAddr);
+    sockaddr_in ClientAddrSTR;
+    unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
 
     // loop accepting
-    iShClientSocket = accept(ServSockets.shell, (sockaddr *)&ClientAddr,
-                             (socklen_t *)&ClientAddrLen);
-    if (iShClientSocket > 0) {
+    int iSockets[2]{ServSockets.shell, ServSockets.file};
+    Accepted accepted_STR =
+        Utils::AcceptAny((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+                         (socklen_t *)&iClientAddrLen);
+
+    if (accepted_STR.accepted == ServSockets.shell) {
         Utils::buoy("Shell client incoming");
+        ShellCallback(accepted_STR.newsocket);
+
+    } else if (accepted_STR.accepted == ServSockets.file) {
+        Utils::buoy("File client incoming");
+        FileCallback(accepted_STR.newsocket);
+
     } else {
-        Utils::buoy("Failed to accept client");
+        Utils::buoy("Failed to accept any client");
     }
 
-    ShellCallback(iShClientSocket);
-    close(iShClientSocket);
-
-    shutdown(iShClientSocket, 1);
-}
-
-void PrintMessage(const int iSh, const int iFi) {
-    Utils::buoy("SHFD Shell and file server.");
-    Utils::buoy("Shell Server is listening on port " + std::to_string(iSh));
-    Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
+    close(accepted_STR.newsocket);
+    shutdown(accepted_STR.newsocket, 1);
 }
 
 /**
@@ -90,23 +92,52 @@ void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
 
+    ShellClient *NewClient = new ShellClient();
+    STDResponse *NewRes = new STDResponse(iServFD);
+
     while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
         const std::string sRequest(req);
-
         std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
 
-        ShellClient NewClient;
-
-        ShellResponse ShellRes{NewClient.RunShellCommand(RequestTokenized)};
-
-        // send(iServFD, req, strlen(req), 0);
-        send(iServFD, "\n", 1, 0);
+        if (strcmp(RequestTokenized.at(0), "CPRINT") == 0) {
+            std::string &LastOutput = NewClient->GetLastOutput();
+            if (LastOutput == "MARK-NO-COMMAND") {
+                NewRes->shell(-3);
+                continue;
+            }
+            send(iServFD, LastOutput.c_str(), LastOutput.size(), 0);
+            NewRes->shell(0);
+            continue;
+        }
+        int ShellRes;
+        try {
+            ShellRes = NewClient->RunShellCommand(RequestTokenized);
+            NewRes->shell(ShellRes);
+        } catch (const std::string &e) {
+            NewRes->fail(e);
+            Utils::buoy(e);
+        }
     }
-    Utils::buoy("Connection closed by client.");
+    Utils::buoy("Shell connection closed by client.");
     shutdown(iServFD, 1);
 }
 
-void DoFileCallback(const int iServFD) {}
+void DoFileCallback(const int iServFD) {
+    const int ALEN = 256;
+    char req[ALEN];
+
+    // ShellClient *NewClient = new ShellClient();
+    STDResponse *NewRes = new STDResponse(iServFD);
+
+    while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+        const std::string sRequest(req);
+        std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
+
+        NewRes->shell(0);
+    }
+    Utils::buoy("File Connection closed by client.");
+    shutdown(iServFD, 1);
+}
 
 /**
  *

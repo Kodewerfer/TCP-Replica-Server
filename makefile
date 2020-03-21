@@ -3,12 +3,12 @@ ALL: build tidy
 run: ALL
 		./shfd
 
-build: lib.o Utils.o main.o  ShellServer.o
+build: lib.o Utils.o main.o  ShellClient.o
 		@echo -----------------------
 		@echo "Building sshell..."
 		@echo -----------------------
 
-		g++ lib.o Utils.o main.o ShellServer.o -o shfd
+		g++ lib.o Utils.o main.o ShellClient.o -o shfd
 
 main.o: ./src/main.cpp
 		@echo -----------------------
@@ -17,12 +17,12 @@ main.o: ./src/main.cpp
 
 		g++ -c ./src/main.cpp
 
-ShellServer.o: ./src/components/ShellServer.cpp
+ShellClient.o: ./src/components/ShellClient.cpp
 		@echo -----------------------
-		@echo Building ShellServer...
+		@echo Building ShellClient...
 		@echo -----------------------
 
-		g++ -c ./src/components/ShellServer.cpp
+		g++ -c ./src/components/ShellClient.cpp
 
 lib.o: ./src/lib.cpp		
 		@echo -----------------------
