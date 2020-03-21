@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "Utils.hpp"
+#include "components/FileClient.hpp"
 #include "components/STDResponse.hpp"
 #include "components/ShellClient.hpp"
 #include "lib.hpp"

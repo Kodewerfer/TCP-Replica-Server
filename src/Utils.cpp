@@ -74,6 +74,7 @@ void Utils::buoy(std::string message) {
         // log
     } else {
         // display to console
+        std::cout.flush();
         std::cout << std::asctime(std::localtime(&result)) << "  : " << message
                   << "\n";
     }

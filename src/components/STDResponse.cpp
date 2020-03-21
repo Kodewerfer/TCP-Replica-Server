@@ -2,49 +2,75 @@
 
 STDResponse::STDResponse(int fd)
     : ClientFd(fd),
-      ERROR_CODES({{
-          "ERPIP",
-          "Error creating the pipe",
-      }}) {}
+      ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
+                   {"ER-F-OP", "Error Opening The File"}}) {}
 
 void STDResponse::sendPayload(std::string &Content) {
     send(ClientFd, Content.c_str(), Content.size(), 0);
     send(ClientFd, "\n", 1, 0);
 }
 
-// ERR or OK
-void STDResponse::shell(int code, std::string message) {
+void STDResponse::file(int code, std::string message) {
+    bool bIsSuccess{code >= 0};
     std::string Payload = "";
+
     // stat
-    if (code == 0) {
+    if (bIsSuccess)
         Payload += "OK ";
-    }
-    if (code != 0 && code != 254) {
+    else
         Payload += "ERR ";
-    }
-    if (code == 254) {
-        Payload += "FAIL ";
-    }
 
     // code
-    if (code == -3) {
-        Payload += "EIO ";
-    } else {
-        Payload += std::to_string(code) + " ";
-    }
+    if (bIsSuccess) Payload += std::to_string(code) + " ";
+    // if (!bIsSuccess||) Payload += "ENOENT ";
+    if (!bIsSuccess) Payload += "ENOENT ";
 
     // message
     if (message != " ") {
         Payload += message;
-    } else if (code == -3) {
-        Payload += "No Command Issued";
-    } else if (code == 254) {
-        Payload += "Program Cannot Be Found";
-    } else if (code != 0) {
-        Payload += "Non-zero Exit";
     } else {
-        Payload += "Success";
+        if (bIsSuccess) Payload += "Operation Success";
+
+        if (!bIsSuccess && code == NO_SUCH_FILE)
+            Payload += "No Such File Or Directory";
+        if (!bIsSuccess && code == NO_PRE_OEPN)
+            Payload += "No Previously Opened File";
+        if (!bIsSuccess && code == PARAM_PARS) Payload += "Param Parsing Error";
+        if (!bIsSuccess && code == WRT_FAILED) Payload += "Writing Failed";
+        if (!bIsSuccess && code == NO_VALID_COM)
+            Payload += "No Valid Command Received";
     }
+
+    sendPayload(Payload);
+
+    return;
+}
+
+// ERR or OK
+void STDResponse::shell(int code, std::string message) {
+    std::string Payload = "";
+    // stat
+    if (code == 0) Payload += "OK ";
+
+    if (code != 0) Payload += "ERR ";
+
+    // code
+    if (code == -3)
+        Payload += "EIO ";
+    else
+        Payload += std::to_string(code) + " ";
+
+    // message
+    if (message != " ")
+        Payload += message;
+    else if (code == -3)
+        Payload += "No Command Issued";
+    else if (code == 254)
+        Payload += "Program Cannot Be Found";
+    else if (code != 0)
+        Payload += "Non-zero Exit";
+    else
+        Payload += "Success";
 
     sendPayload(Payload);
 

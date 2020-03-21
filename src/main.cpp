@@ -126,14 +126,43 @@ void DoFileCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
 
-    // ShellClient *NewClient = new ShellClient();
+    FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
     while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
         const std::string sRequest(req);
         std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
+        char *TheCommand{RequestTokenized.at(0)};
 
-        NewRes->shell(0);
+        int res{-5};
+        std::string message{" "};
+        try {
+            // FOPEN
+            if (strcmp(TheCommand, "FOPEN") == 0) {
+                res = NewClient->FOPEN(RequestTokenized);
+            }
+            // FSEEK
+            if (strcmp(TheCommand, "FSEEK") == 0) {
+                res = NewClient->FSEEK(RequestTokenized);
+            }
+            // FREAD
+            if (strcmp(TheCommand, "FREAD") == 0) {
+                res = NewClient->FREAD(RequestTokenized, message);
+            }
+            // FWRITE
+            if (strcmp(TheCommand, "FWRITE") == 0) {
+                res = NewClient->FWRITE(RequestTokenized);
+            }
+            // FCLOSE
+            if (strcmp(TheCommand, "FCLOSE") == 0) {
+                res = NewClient->FCLOSE(RequestTokenized);
+            }
+        } catch (const std::string &e) {
+            NewRes->fail(e);
+            continue;
+        }
+
+        NewRes->file(res, message);
     }
     Utils::buoy("File Connection closed by client.");
     shutdown(iServFD, 1);

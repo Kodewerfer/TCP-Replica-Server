@@ -6,9 +6,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "FileErrCode.hpp"
 
 #include <map>
 #include <string>
+
+
 
 class STDResponse {
    private:
@@ -19,6 +22,8 @@ class STDResponse {
 
    public:
     STDResponse(int fd);
+    void file(int code, std::string messages = " ");
+    // void file(std::messages);
     void shell(int, std::string message = " ");
     void fail(std::string ServerCode);
 };
