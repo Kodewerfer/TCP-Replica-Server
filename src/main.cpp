@@ -50,6 +50,10 @@ void PrintMessage(const int iSh, const int iFi) {
     Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
 }
 
+void tester() {
+    Utils::buoy("testr");
+    std::cerr << "testr";
+}
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
@@ -62,25 +66,30 @@ void StartServer(ServerSockets ServSockets,
     unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
 
     // loop accepting
-    int iSockets[2]{ServSockets.shell, ServSockets.file};
-    Accepted accepted_STR =
-        Utils::AcceptAny((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
-                         (socklen_t *)&iClientAddrLen);
+    while (true) {
+        int iSockets[2]{ServSockets.shell, ServSockets.file};
+        // the correct callback to call;
+        std::function<void(const int)> TheCallback{nullptr};
+        Accepted accepted_STR =
+            Utils::AcceptAny((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+                             (socklen_t *)&iClientAddrLen);
 
-    if (accepted_STR.accepted == ServSockets.shell) {
-        Utils::buoy("Shell client incoming");
-        ShellCallback(accepted_STR.newsocket);
+        if (accepted_STR.accepted == ServSockets.shell) {
+            Utils::buoy("Shell client incoming");
+            TheCallback = ShellCallback;
 
-    } else if (accepted_STR.accepted == ServSockets.file) {
-        Utils::buoy("File client incoming");
-        FileCallback(accepted_STR.newsocket);
+        } else if (accepted_STR.accepted == ServSockets.file) {
+            Utils::buoy("File client incoming");
+            TheCallback = FileCallback;
 
-    } else {
-        Utils::buoy("Failed to accept any client");
+        } else {
+            Utils::buoy("Failed to accept any client");
+        }
+
+        // MUST WITHIN A SCOPE THAT WILL NOT BE TERMINATE
+        std::thread Worker(TheCallback, accepted_STR.newsocket);
+        Worker.detach();
     }
-
-    close(accepted_STR.newsocket);
-    shutdown(accepted_STR.newsocket, 1);
 }
 
 /**
@@ -119,6 +128,8 @@ void DoShellCallback(const int iServFD) {
         }
     }
     Utils::buoy("Shell connection closed by client.");
+
+    close(iServFD);
     shutdown(iServFD, 1);
 }
 
@@ -165,6 +176,7 @@ void DoFileCallback(const int iServFD) {
         NewRes->file(res, message);
     }
     Utils::buoy("File Connection closed by client.");
+    close(iServFD);
     shutdown(iServFD, 1);
 }
 

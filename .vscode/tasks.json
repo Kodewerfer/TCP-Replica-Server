@@ -1,38 +1,26 @@
 {
   "tasks": [{
-      "type": "shell",
-      "label": "g++ build active file",
-      "command": "/usr/bin/g++",
-      "args": [
-        "-g",
-        "${workspaceFolder}/src/*.cpp",
-        "-g",
-        "${workspaceFolder}/src/*/*.cpp",
-        "-o",
-        "${workspaceFolder}/shfd"
-      ],
-      "options": {
-        "cwd": "/usr/bin"
-      },
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": []
+    "type": "shell",
+    "label": "g++ build active file",
+    "command": "/usr/bin/g++",
+    "args": [
+      "-std=c++11",
+      "-pthread",
+      "-g",
+      "${workspaceFolder}/src/*.cpp",
+      "-g",
+      "${workspaceFolder}/src/*/*.cpp",
+      "-o",
+      "${workspaceFolder}/shfd"
+    ],
+    "options": {
+      "std": "c++11",
     },
-    {
-      "type": "shell",
-      "label": "Build & run",
-      "command": "${workspaceFolder}/shfd",
-      "dependsOn": [
-        "g++ build active file"
-      ],
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
-      "problemMatcher": []
-    }
-  ],
+    "group": {
+      "kind": "build",
+      "isDefault": true
+    },
+    "problemMatcher": []
+  }],
   "version": "2.0.0"
 }

@@ -51,11 +51,12 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
-
+    Utils::rowdy("Thread " + Utils::GetTID() + " is seeking.");
     //
     if (lseek(Req.fd, Req.params, SEEK_CUR) <= 0) {
         res = -1;
     }
+    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
 
     return res;
 }
@@ -78,9 +79,11 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
     char buff[Req.params + 1]{0};
 
     //
+    Utils::rowdy("Thread " + Utils::GetTID() + " is reading.");
     if ((res = read(Req.fd, buff, Req.params)) < 0) {
         res = -1;
     }
+    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
 
     if (res == 0) {
         outMessage = "END-OF-FILE";
@@ -108,8 +111,9 @@ int FileClient::FWRITE(std::vector<char *> Request) {
         return FilterFlag;
     }
     //
-    // char *buff{Request.at(2)};
+    Utils::rowdy("Thread " + Utils::GetTID() + " is writing.");
     res = write(fd, Request.at(2), strlen(Request.at(2)));
+    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
     if (res <= 0) {
         // failed
         return WRT_FAILED;

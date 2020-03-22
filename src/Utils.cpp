@@ -79,3 +79,29 @@ void Utils::buoy(std::string message) {
                   << "\n";
     }
 }
+
+void Utils::rowdy(std::string message) {
+    if (bRunningBackground) {
+        return;
+    }
+
+    std::time_t result = std::time(nullptr);
+
+    if (bRunningBackground) {
+        // log
+    } else {
+        // display to console
+        std::cout.flush();
+        std::cout << std::asctime(std::localtime(&result)) << "  : " << message
+                  << "\n";
+    }
+}
+
+std::string Utils::GetTID() {
+    auto myid = std::this_thread::get_id();
+    std::stringstream ss;
+    ss << myid;
+    std::string mystring = ss.str();
+
+    return mystring;
+}

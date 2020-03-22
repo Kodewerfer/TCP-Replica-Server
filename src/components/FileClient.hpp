@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "../Utils.hpp"
 #include "FileErrCode.hpp"
 
 struct LastRequest {

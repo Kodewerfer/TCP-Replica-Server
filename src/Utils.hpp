@@ -12,7 +12,9 @@
 
 #include <ctime>
 #include <iostream>
+#include <sstream>
 #include <string>
+#include <thread>
 
 const int FLAG_NO_DATA{-2};
 
@@ -54,4 +56,7 @@ class Utils {
      *  display or logging.
      * */
     static void buoy(std::string message);
+    static void rowdy(std::string message);
+
+    static std::string GetTID();
 };
