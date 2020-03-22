@@ -8,7 +8,7 @@ build: lib.o Utils.o main.o  ShellClient.o STDResponse.o FileClient.o
 		@echo "Building..."
 		@echo -----------------------
 
-		g++ main.o lib.o Utils.o  ShellClient.o FileClient.o STDResponse.o -o shfd
+		g++ -std=c++11 -pthread main.o lib.o Utils.o ShellClient.o FileClient.o STDResponse.o -o shfd
 
 main.o: ./src/main.cpp
 		@echo -----------------------

@@ -150,7 +150,11 @@ void DoFileCallback(const int iServFD) {
         try {
             // FOPEN
             if (strcmp(TheCommand, "FOPEN") == 0) {
-                res = NewClient->FOPEN(RequestTokenized);
+                int usedFd{-1};
+                res = NewClient->FOPEN(RequestTokenized, usedFd);
+                if (usedFd > 0) {
+                    NewRes->fileFdInUse(usedFd);
+                }
             }
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {

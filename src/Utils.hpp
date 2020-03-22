@@ -25,9 +25,9 @@ struct Accepted {
 
 class Utils {
    private:
-    static bool bRunningBackground;
-
    public:
+    static bool bRunningBackground;
+    static bool bIsDebugging;
     /**
      *  set the flag for background running
      * */

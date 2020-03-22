@@ -1,5 +1,11 @@
 #include "FileClient.hpp"
 
+// File access control
+bool FileClient::bIsDebugging{false};
+std::map<int, std::string> FileClient::FdToName{};
+std::map<std::string, int> FileClient::NameToFd{};
+std::map<std::string, AccessCtl> FileClient::FileAccess{};
+
 LastRequest FileClient::PreprocessReq(std::vector<char *> Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
@@ -23,18 +29,39 @@ int FileClient::PreFilter(int fd) {
     return 0;
 }
 
-int FileClient::FOPEN(std::vector<char *> Request) {
+int FileClient::FOPEN(std::vector<char *> Request, int &outPreFd) {
     if (Request.size() < 2) {
         return PARAM_PARS;
     }
 
-    const int iFd = open(Request.at(1), O_RDWR | (O_APPEND | O_CREAT), S_IRWXU);
+    std::string FileName = std::string(Request.at(1));
+
+    // access control
+    int FdRef = NameToFd[FileName];
+    if (FdRef > 0) {
+        // already opened.
+        outPreFd = FdRef;
+        // already opened by self.
+        for (auto ele : OpenedFiles) {
+            if (ele == FdRef) {
+                throw std::string("ER-F-FD");
+            }
+        }
+    }
+
+    int iFd = open(Request.at(1), O_RDWR | (O_APPEND | O_CREAT), S_IRWXU);
 
     if (iFd < 0) {
         throw std::string("ER-F-OP");
     }
 
     OpenedFiles.push_back(iFd);
+
+    // access control
+    // store refs
+    FdToName[iFd] = FileName;
+    NameToFd[FileName] = iFd;
+
     return iFd;
 }
 
@@ -51,12 +78,10 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
-    Utils::rowdy("Thread " + Utils::GetTID() + " is seeking.");
     //
     if (lseek(Req.fd, Req.params, SEEK_CUR) <= 0) {
         res = -1;
     }
-    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
 
     return res;
 }
@@ -75,15 +100,28 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
         return FilterFlag;
     }
 
-    //
-    char buff[Req.params + 1]{0};
+    // file access control
+    std::string FileName = FdToName[Req.fd];
+    AccessCtl &Control = FileAccess[FileName];
 
-    //
+    if (Control.writing > 0) {
+        throw std::string("ER-F-ACEDI");
+    }
+
     Utils::rowdy("Thread " + Utils::GetTID() + " is reading.");
+    Control.reading += 1;
+
+    if (bIsDebugging) {
+        sleep(3);
+    }
+
+    // read
+    char buff[Req.params + 1]{0};
     if ((res = read(Req.fd, buff, Req.params)) < 0) {
         res = -1;
     }
-    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
+    Utils::rowdy("Thread " + Utils::GetTID() + " ends reading.");
+    Control.reading -= 1;
 
     if (res == 0) {
         outMessage = "END-OF-FILE";
@@ -110,15 +148,37 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
-    //
+
+    // file access control
+    std::string FileName = FdToName[fd];
+    AccessCtl &Control = FileAccess[FileName];
+
+    // !! LOCKING !!
+    if (Control.reading > 0 || !Control.writeLock.try_lock()) {
+        //  abort.
+        throw std::string("ER-F-ACEDI");
+    }
+    // Critial region
+    Control.writing += 1;
+
     Utils::rowdy("Thread " + Utils::GetTID() + " is writing.");
+
+    if (bIsDebugging) {
+        sleep(3);
+    }
+    // Write
     res = write(fd, Request.at(2), strlen(Request.at(2)));
+
     Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
+
+    Control.writing -= 1;
+    // --- Critial region
+    Control.writeLock.unlock();
+
     if (res <= 0) {
         // failed
         return WRT_FAILED;
     }
-    //
 
     return res;
 }
@@ -146,6 +206,9 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
         index++;
     }
     OpenedFiles.erase(OpenedFiles.begin() + index);
+
+    // remove fd ref.
+    FdToName.erase(fd);
 
     return res;
 }

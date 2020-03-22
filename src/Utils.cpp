@@ -1,6 +1,7 @@
 #include "Utils.hpp"
 
 bool Utils::bRunningBackground{false};
+bool Utils::bIsDebugging{false};
 
 int Utils::CreateSocket(const unsigned short port,
                         const unsigned long int ip_addr, const int backlog) {
@@ -81,7 +82,7 @@ void Utils::buoy(std::string message) {
 }
 
 void Utils::rowdy(std::string message) {
-    if (bRunningBackground) {
+    if (!bIsDebugging) {
         return;
     }
 

@@ -46,6 +46,8 @@
     "map": "cpp",
     "chrono": "cpp",
     "ratio": "cpp",
-    "thread": "cpp"
+    "thread": "cpp",
+    "condition_variable": "cpp",
+    "mutex": "cpp"
   }
 }

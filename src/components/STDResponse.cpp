@@ -3,7 +3,9 @@
 STDResponse::STDResponse(int fd)
     : ClientFd(fd),
       ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
-                   {"ER-F-OP", "Error Opening The File"}}) {}
+                   {"ER-F-OP", "Error Opening The File"},
+                   {"ER-F-ACEDI", "File Access Control : Action Denied"},
+                   {"ER-F-FD", "File Already Opened"}}) {}
 
 void STDResponse::sendPayload(std::string &Content) {
     send(ClientFd, Content.c_str(), Content.size(), 0);
@@ -46,6 +48,14 @@ void STDResponse::file(int code, std::string message) {
     return;
 }
 
+void STDResponse::fileFdInUse(int fd) {
+    std::string Payload = "ERR ";
+    Payload += std::to_string(fd) + " ";
+    Payload += "This File Has Already Been Opened";
+
+    sendPayload(Payload);
+}
+
 // ERR or OK
 void STDResponse::shell(int code, std::string message) {
     std::string Payload = "";
@@ -81,11 +91,7 @@ void STDResponse::shell(int code, std::string message) {
 void STDResponse::fail(std::string ServerCode) {
     std::string Payload = "FAIL " + ServerCode + " ";
 
-    for (auto const &ele : ERROR_CODES) {
-        if (ele.first == ServerCode) {
-            Payload += ele.second;
-        }
-    }
+    Payload += ERROR_CODES[ServerCode];
 
     sendPayload(Payload);
 
