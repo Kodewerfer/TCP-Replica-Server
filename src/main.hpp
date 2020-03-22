@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include <signal.h>
 
 #include <functional>
@@ -16,7 +17,12 @@ struct ServerSockets {
     int file;
 };
 
-ServerSockets InitServer();
+struct ServerPorts {
+    int sh;
+    int fi;
+};
+
+ServerSockets InitServer(int, int);
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback);
@@ -25,4 +31,5 @@ void PrintMessage(const int iSh, const int iFi);
 void DoFileCallback(const int);
 void DoShellCallback(const int);
 
+ServerPorts ParsOpt(int, char **, const char *);
 void SigPipeHandle(int signum);

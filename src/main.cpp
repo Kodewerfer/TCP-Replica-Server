@@ -8,16 +8,18 @@
  **/
 
 #include "main.hpp"
-
+#define SHELL_DEFAULT 9000;
+#define FILE_DEFAULT 9001;
 int main(int arg, char *argv_main[], char *envp[]) {
-    const int iShPort{9000};
-    const int iFiPort{9001};
+    ServerPorts FromOpts = ParsOpt(arg, argv_main, "f:s:dD");
 
+    const int iShPort{FromOpts.sh};
+    const int iFiPort{FromOpts.fi};
     signal(SIGPIPE, SigPipeHandle);
 
     ServerSockets ServSockets;
     try {
-        ServSockets = InitServer();
+        ServSockets = InitServer(iShPort, iFiPort);
         PrintMessage(iShPort, iFiPort);
     } catch (char const *msg) {
         Utils::buoy(msg);
@@ -33,13 +35,13 @@ int main(int arg, char *argv_main[], char *envp[]) {
  * Main logics
  *
  **/
-ServerSockets InitServer() {
+ServerSockets InitServer(int iSh, int iFi) {
     // init shell server.
     int iShServSocket{-1};
     int iFiServSocket{-1};
 
-    iShServSocket = Utils::CreateSocketMaster(9000);
-    iFiServSocket = Utils::CreateSocketMaster(9001);
+    iShServSocket = Utils::CreateSocketMaster(iSh);
+    iFiServSocket = Utils::CreateSocketMaster(iFi);
 
     return {iShServSocket, iFiServSocket};
 }
@@ -47,13 +49,9 @@ ServerSockets InitServer() {
 void PrintMessage(const int iSh, const int iFi) {
     Utils::buoy("SHFD Shell and file server.");
     Utils::buoy("Shell Server is listening on port " + std::to_string(iSh));
-    Utils::buoy("SHFD Shell and file server. " + std::to_string(iFi));
+    Utils::buoy("File Server is listening on port. " + std::to_string(iFi));
 }
 
-void tester() {
-    Utils::buoy("testr");
-    std::cerr << "testr";
-}
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
@@ -100,6 +98,11 @@ void StartServer(ServerSockets ServSockets,
 void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
+    // send welcome message
+    const char welcome[] = "Shell Server Connected.";
+    send(iServFD, "\n", 1, 0);
+    send(iServFD, welcome, strlen(welcome), 0);
+    send(iServFD, "\n", 1, 0);
 
     ShellClient *NewClient = new ShellClient();
     STDResponse *NewRes = new STDResponse(iServFD);
@@ -136,6 +139,11 @@ void DoShellCallback(const int iServFD) {
 void DoFileCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
+    // send welcome message
+    const char welcome[] = "File Server Connected.";
+    send(iServFD, "\n", 1, 0);
+    send(iServFD, welcome, strlen(welcome), 0);
+    send(iServFD, "\n", 1, 0);
 
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
@@ -190,3 +198,48 @@ void DoFileCallback(const int iServFD) {
  *
  **/
 void SigPipeHandle(int signum) { return; }
+ServerPorts ParsOpt(int argc, char **argv, const char *optstring) {
+    int iShPort = SHELL_DEFAULT;
+    int iFiPort = FILE_DEFAULT;
+
+    int opt;
+    while ((opt = getopt(argc, argv, optstring)) != -1) {
+        switch (opt) {
+            case 's': {  // shell port
+                int temp = atoi(optarg);
+                if (temp > 0) {
+                    iShPort = temp;
+                    std::cout << "Shell port changed to " << optarg
+                              << std::endl;
+                } else {
+                    std::cout << "-s error, using default port" << optarg
+                              << std::endl;
+                }
+
+                break;
+            }
+            case 'f': {
+                int temp = atoi(optarg);
+                if (temp > 0) {
+                    iFiPort = temp;
+                    std::cout << "File port changed to " << optarg << std::endl;
+                } else {
+                    std::cout << "-f error, using default port" << optarg
+                              << std::endl;
+                }
+                // file port
+                break;
+            }
+            case 'd': {
+                // front run
+                break;
+            }
+            case 'D': {
+                // debug
+                break;
+            }
+        }
+    }
+
+    return {iShPort, iFiPort};
+}

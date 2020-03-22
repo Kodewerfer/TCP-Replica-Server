@@ -36,14 +36,14 @@
         // flow child
         "text": "-gdb-set follow-fork-mode child"
       }],
-      "preLaunchTask": "g++ build active file"
+      "preLaunchTask": "g++ build"
     },
     {
       "name": "Build & Debug",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/shfd",
-      "args": [],
+      "args": ["-d", "-D", "-s", "9005", "-f", "9006"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],
@@ -54,7 +54,7 @@
         "text": "-enable-pretty-printing",
         "ignoreFailures": true
       }],
-      "preLaunchTask": "g++ build active file",
+      "preLaunchTask": "g++ build",
       "miDebuggerPath": "/usr/bin/gdb"
     }
   ]
