@@ -1,5 +1,9 @@
 C++ multi-threaded TCP server
 ===
+Program Current Maturity Level: **Pre-Alpha**
+
+Re-use the code with caution.
+___
 
 *This is a multi-threaded TCP-IP shell and file server capable of accepting telnet connections.  The program runs in the background as a Linux daemon, using the project root as the working directory. The log file is in the program's root.*
 
