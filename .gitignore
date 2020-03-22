@@ -33,7 +33,7 @@
 
 # project outputs
 shfd
-rsshell
+*.log
 
 # project testing
 tests/
