@@ -12,10 +12,14 @@
 #define FILE_DEFAULT 9001;
 int main(int arg, char *argv_main[], char *envp[]) {
     ServerPorts FromOpts = ParsOpt(arg, argv_main, "f:s:dD");
+    signal(SIGPIPE, SIG_IGN);
+    if (Utils::bRunningBackground) {
+        // daemon
+        daemonize();
+    }
 
     const int iShPort{FromOpts.sh};
     const int iFiPort{FromOpts.fi};
-    signal(SIGPIPE, SigPipeHandle);
 
     ServerSockets ServSockets;
     try {
@@ -197,7 +201,7 @@ void DoFileCallback(const int iServFD) {
  * Miscs
  *
  **/
-void SigPipeHandle(int signum) { return; }
+
 ServerPorts ParsOpt(int argc, char **argv, const char *optstring) {
     int iShPort = SHELL_DEFAULT;
     int iFiPort = FILE_DEFAULT;
@@ -207,39 +211,63 @@ ServerPorts ParsOpt(int argc, char **argv, const char *optstring) {
         switch (opt) {
             case 's': {  // shell port
                 int temp = atoi(optarg);
-                if (temp > 0) {
-                    iShPort = temp;
-                    std::cout << "Shell port changed to " << optarg
-                              << std::endl;
-                } else {
-                    std::cout << "-s error, using default port" << optarg
-                              << std::endl;
-                }
+                if (temp > 0) iShPort = temp;
 
                 break;
             }
             case 'f': {
                 int temp = atoi(optarg);
-                if (temp > 0) {
-                    iFiPort = temp;
-                    std::cout << "File port changed to " << optarg << std::endl;
-                } else {
-                    std::cout << "-f error, using default port" << optarg
-                              << std::endl;
-                }
+                if (temp > 0) iFiPort = temp;
+
                 // file port
                 break;
             }
             case 'd': {
                 // front run
+                Utils::bRunningBackground = false;
                 break;
             }
             case 'D': {
                 // debug
+                Utils::bIsDebugging = true;
+                FileClient::bIsDebugging = true;
                 break;
             }
         }
     }
 
     return {iShPort, iFiPort};
+}
+void daemonize() {
+    pid_t pid;
+
+    /* Fork off the parent process */
+    pid = fork();
+
+    if (pid < 0) exit(EXIT_FAILURE);
+
+    if (pid > 0) exit(EXIT_SUCCESS);
+
+    if (setsid() < 0) exit(EXIT_FAILURE);
+
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+
+    /* Fork off for the second time*/
+    pid = fork();
+
+    if (pid < 0) exit(EXIT_FAILURE);
+
+    if (pid > 0) exit(EXIT_SUCCESS);
+
+    // file permission
+    umask(0);
+
+    /* Close all open file descriptors */
+    int x;
+    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--) {
+        close(x);
+    }
+
+    return;
 }

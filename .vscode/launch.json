@@ -43,7 +43,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/shfd",
-      "args": ["-d", "-D", "-s", "9005", "-f", "9006"],
+      "args": ["-D"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],

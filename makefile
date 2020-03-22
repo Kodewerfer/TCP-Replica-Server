@@ -63,4 +63,4 @@ clean:
 		@echo "      CLEANING"
 		@echo -----------------------
 
-		rm -r *.o *.out shfd
+		rm -r *.o *.out shfd *.log

@@ -1,6 +1,6 @@
 #include "Utils.hpp"
 
-bool Utils::bRunningBackground{false};
+bool Utils::bRunningBackground{true};
 bool Utils::bIsDebugging{false};
 
 int Utils::CreateSocket(const unsigned short port,
@@ -73,6 +73,12 @@ void Utils::buoy(std::string message) {
 
     if (bRunningBackground) {
         // log
+        std::ofstream log;
+        log.open("shfd.log", std::ios::app);
+        log << std::asctime(std::localtime(&result));
+        log << message << "\n"
+            << "\n";
+        log.close();
     } else {
         // display to console
         std::cout.flush();

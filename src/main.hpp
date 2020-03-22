@@ -1,5 +1,11 @@
 #include <getopt.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <syslog.h>
+#include <unistd.h>
 
 #include <functional>
 #include <string>
@@ -23,13 +29,13 @@ struct ServerPorts {
 };
 
 ServerSockets InitServer(int, int);
+void PrintMessage(const int iSh, const int iFi);
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback);
-void PrintMessage(const int iSh, const int iFi);
 
 void DoFileCallback(const int);
 void DoShellCallback(const int);
 
 ServerPorts ParsOpt(int, char **, const char *);
-void SigPipeHandle(int signum);
+void daemonize();
