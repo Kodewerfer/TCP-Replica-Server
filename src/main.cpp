@@ -71,25 +71,27 @@ void StartServer(ServerSockets ServSockets,
     while (true) {
         int iSockets[2]{ServSockets.shell, ServSockets.file};
         // the correct callback to call;
-        std::function<void(const int)> TheCallback{nullptr};
+        std::function<void(const int)> TheCallback_PTR{nullptr};
         Accepted accepted_STR =
             Utils::AcceptAny((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
                              (socklen_t *)&iClientAddrLen);
 
         if (accepted_STR.accepted == ServSockets.shell) {
+            // Shell server
             Utils::buoy("Shell client incoming");
-            TheCallback = ShellCallback;
+            TheCallback_PTR = ShellCallback;
 
         } else if (accepted_STR.accepted == ServSockets.file) {
+            // File server
             Utils::buoy("File client incoming");
-            TheCallback = FileCallback;
+            TheCallback_PTR = FileCallback;
 
         } else {
             Utils::buoy("Failed to accept any client");
         }
 
         // MUST WITHIN A SCOPE THAT WILL NOT BE TERMINATE
-        std::thread Worker(TheCallback, accepted_STR.newsocket);
+        std::thread Worker(TheCallback_PTR, accepted_STR.newsocket);
         Worker.detach();
     }
 }
@@ -103,11 +105,28 @@ void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
     // send welcome message
-    const char welcome[] = "Shell Server Connected.";
+    std::string WelcomeMessage = "Shell Server Connected.";
+
+    // NEW - Shell client limit
+    bool bIsExceedLimt{!(Utils::ShellServerLock.try_lock())};
+    if (bIsExceedLimt) {
+        WelcomeMessage =
+            "Shell Server has exceeded its limit, terminating session...";
+    }
+
     send(iServFD, "\n", 1, 0);
-    send(iServFD, welcome, strlen(welcome), 0);
+    send(iServFD, WelcomeMessage.c_str(), WelcomeMessage.size(), 0);
     send(iServFD, "\n", 1, 0);
 
+    // Terminate the session if more than one user.
+    if (bIsExceedLimt) {
+        close(iServFD);
+        shutdown(iServFD, 1);
+        Utils::buoy("Shell client Blocked");
+        return;
+    }
+
+    // Normal proceeding.
     ShellClient *NewClient = new ShellClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
@@ -135,6 +154,22 @@ void DoShellCallback(const int iServFD) {
         }
     }
     Utils::buoy("Shell connection closed by client.");
+
+    close(iServFD);
+    shutdown(iServFD, 1);
+    // Accepting new shell client.
+    Utils::ShellServerLock.unlock();
+}
+
+void DoShellBlock(const int iServFD) {
+    const int ALEN = 256;
+    char req[ALEN];
+    // send welcome message
+    const char welcome[] =
+        "Shell Server has exceeded its client limit. Terminating session...";
+    send(iServFD, "\n", 1, 0);
+    send(iServFD, welcome, strlen(welcome), 0);
+    send(iServFD, "\n", 1, 0);
 
     close(iServFD);
     shutdown(iServFD, 1);

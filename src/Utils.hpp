@@ -13,6 +13,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -29,6 +30,7 @@ class Utils {
    public:
     static bool bRunningBackground;
     static bool bIsDebugging;
+    static std::mutex ShellServerLock;
     /**
      *  set the flag for background running
      * */

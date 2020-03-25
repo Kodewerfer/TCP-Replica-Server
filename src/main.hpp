@@ -34,8 +34,8 @@ void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback);
 
-void DoFileCallback(const int);
 void DoShellCallback(const int);
+void DoFileCallback(const int);
 
 ServerPorts ParsOpt(int, char **, const char *);
 void daemonize();

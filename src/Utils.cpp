@@ -2,6 +2,7 @@
 
 bool Utils::bRunningBackground{true};
 bool Utils::bIsDebugging{false};
+std::mutex Utils::ShellServerLock;
 
 int Utils::CreateSocket(const unsigned short port,
                         const unsigned long int ip_addr, const int backlog) {
