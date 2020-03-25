@@ -44,7 +44,7 @@ ServerSockets InitServer(int iSh, int iFi) {
     int iShServSocket{-1};
     int iFiServSocket{-1};
 
-    iShServSocket = Utils::CreateSocketMaster(iSh);
+    iShServSocket = Utils::CreateSocketMasterLocalOnly(iSh);
     iFiServSocket = Utils::CreateSocketMaster(iFi);
 
     return {iShServSocket, iFiServSocket};

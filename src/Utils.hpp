@@ -50,6 +50,12 @@ class Utils {
     static int CreateSocketMaster(const unsigned short port,
                                   const int queue = 32);
     /**
+     * Create a master socket for local connection only
+     */
+    static int CreateSocketMasterLocalOnly(const unsigned short port,
+                                           const int queue = 32);
+
+    /**
      *  Accept avalible client.
      * */
     static Accepted AcceptAny(int *fds, int count, sockaddr *addr,

@@ -42,6 +42,11 @@ int Utils::CreateSocketMaster(const unsigned short port, const int queue) {
     return CreateSocket(port, INADDR_ANY, queue);
 }
 
+int Utils::CreateSocketMasterLocalOnly(const unsigned short port,
+                                       const int queue) {
+    return CreateSocket(port, INADDR_LOOPBACK, queue);
+}
+
 Accepted Utils::AcceptAny(int *fds, int count, sockaddr *addr,
                           socklen_t *addrlen) {
     fd_set readfds;
