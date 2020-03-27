@@ -102,6 +102,12 @@ void Utils::rowdy(std::string message) {
 
     if (bRunningBackground) {
         // log
+        std::ofstream log;
+        log.open("shfd.log", std::ios::app);
+        log << std::asctime(std::localtime(&result));
+        log << message << "\n"
+            << "\n";
+        log.close();
     } else {
         // display to console
         std::cout.flush();
