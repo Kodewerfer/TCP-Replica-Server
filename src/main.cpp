@@ -252,7 +252,7 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
         }
     }
 
-    return {iShPort, iFiPort};
+    return {iShPort, iFiPort, iThreadIncr, iThreadMax};
 }
 void daemonize() {
     pid_t pid;

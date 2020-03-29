@@ -20,6 +20,8 @@
 struct OptParsed {
     int sh;
     int fi;
+    int tincr;
+    int tmax;
 };
 
 ServerSockets InitServer(int, int);
