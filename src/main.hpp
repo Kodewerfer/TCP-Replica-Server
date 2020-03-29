@@ -12,11 +12,12 @@
 #include <thread>
 #include <vector>
 
-#include "Utils.hpp"
+#include "ServerUtils.hpp"
 #include "components/FileClient.hpp"
 #include "components/STDResponse.hpp"
 #include "components/ShellClient.hpp"
 #include "lib.hpp"
+#include "threads/ThreadsMan.hpp"
 
 struct ServerSockets {
     int shell;

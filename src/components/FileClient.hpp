@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "../Utils.hpp"
+#include "../ServerUtils.hpp"
 #include "FileErrCode.hpp"
 
 struct LastRequest {

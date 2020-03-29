@@ -25,7 +25,7 @@ struct Accepted {
     int newsocket;
 };
 
-class Utils {
+class ServerUtils {
    private:
    public:
     static bool bRunningBackground;

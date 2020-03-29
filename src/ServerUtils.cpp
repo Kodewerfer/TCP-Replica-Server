@@ -1,11 +1,12 @@
-#include "Utils.hpp"
+#include "ServerUtils.hpp"
 
-bool Utils::bRunningBackground{true};
-bool Utils::bIsDebugging{false};
-std::mutex Utils::ShellServerLock;
+bool ServerUtils::bRunningBackground{true};
+bool ServerUtils::bIsDebugging{false};
+std::mutex ServerUtils::ShellServerLock;
 
-int Utils::CreateSocket(const unsigned short port,
-                        const unsigned long int ip_addr, const int backlog) {
+int ServerUtils::CreateSocket(const unsigned short port,
+                              const unsigned long int ip_addr,
+                              const int backlog) {
     int iSocketFD;
     int opt{1};
     //  create socket
@@ -38,17 +39,18 @@ int Utils::CreateSocket(const unsigned short port,
     return iSocketFD;
 }
 
-int Utils::CreateSocketMaster(const unsigned short port, const int queue) {
+int ServerUtils::CreateSocketMaster(const unsigned short port,
+                                    const int queue) {
     return CreateSocket(port, INADDR_ANY, queue);
 }
 
-int Utils::CreateSocketMasterLocalOnly(const unsigned short port,
-                                       const int queue) {
+int ServerUtils::CreateSocketMasterLocalOnly(const unsigned short port,
+                                             const int queue) {
     return CreateSocket(port, INADDR_LOOPBACK, queue);
 }
 
-Accepted Utils::PollEither(int *fds, int count, sockaddr *addr,
-                           socklen_t *addrlen, int TimeOut) {
+Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
+                                 socklen_t *addrlen, int TimeOut) {
     pollfd PollFromSocks[count]{0};
 
     for (int i = 0; i < count; i++) {
@@ -89,7 +91,7 @@ int recv_nonblock(int sd, char *buf, size_t max, int timeout) {
     return recv(sd, buf, max, 0);
 }
 
-void Utils::buoy(std::string message) {
+void ServerUtils::buoy(std::string message) {
     std::time_t result = std::time(nullptr);
 
     if (bRunningBackground) {
@@ -108,7 +110,7 @@ void Utils::buoy(std::string message) {
     }
 }
 
-void Utils::rowdy(std::string message) {
+void ServerUtils::rowdy(std::string message) {
     if (!bIsDebugging) {
         return;
     }
@@ -131,7 +133,7 @@ void Utils::rowdy(std::string message) {
     }
 }
 
-std::string Utils::GetTID() {
+std::string ServerUtils::GetTID() {
     auto myid = std::this_thread::get_id();
     std::stringstream ss;
     ss << myid;

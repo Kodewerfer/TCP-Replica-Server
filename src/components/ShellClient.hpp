@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "../Utils.hpp"
+#include "../ServerUtils.hpp"
 #include "../lib.hpp"
 
 class ShellClient {

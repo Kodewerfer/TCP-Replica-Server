@@ -108,7 +108,7 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
         throw std::string("ER-F-ACEDI");
     }
 
-    Utils::rowdy("Thread " + Utils::GetTID() + " is reading.");
+    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is reading.");
     Control.reading += 1;
 
     if (bIsDebugging) {
@@ -120,7 +120,7 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
     if ((res = read(Req.fd, buff, Req.params)) < 0) {
         res = -1;
     }
-    Utils::rowdy("Thread " + Utils::GetTID() + " ends reading.");
+    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends reading.");
     Control.reading -= 1;
 
     if (res == 0) {
@@ -161,7 +161,7 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     // Critial region
     Control.writing += 1;
 
-    Utils::rowdy("Thread " + Utils::GetTID() + " is writing.");
+    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is writing.");
 
     if (bIsDebugging) {
         sleep(3);
@@ -169,7 +169,7 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     // Write
     res = write(fd, Request.at(2), strlen(Request.at(2)));
 
-    Utils::rowdy("Thread " + Utils::GetTID() + " ends seeking.");
+    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends seeking.");
 
     Control.writing -= 1;
     // --- Critial region

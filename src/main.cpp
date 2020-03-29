@@ -3,10 +3,10 @@
 #define FILE_DEFAULT 9001;
 int main(int arg, char *argv_main[], char *envp[]) {
     if (signal(SIGINT, HandleSIGs) == SIG_ERR)
-        Utils::buoy("can't catch SIGINT");
+        ServerUtils::buoy("can't catch SIGINT");
 
     ServerPorts FromOpts = ParsOpt(arg, argv_main, "f:s:dD");
-    if (Utils::bRunningBackground) {
+    if (ServerUtils::bRunningBackground) {
         // daemon
         daemonize();
     }
@@ -19,7 +19,7 @@ int main(int arg, char *argv_main[], char *envp[]) {
         ServSockets = InitServer(iShPort, iFiPort);
         PrintMessage(iShPort, iFiPort);
     } catch (char const *msg) {
-        Utils::buoy(msg);
+        ServerUtils::buoy(msg);
     }
 
     StartServer(ServSockets, DoShellCallback, DoFileCallback);
@@ -37,32 +37,23 @@ ServerSockets InitServer(int iSh, int iFi) {
     int iShServSocket{-1};
     int iFiServSocket{-1};
 
-    iShServSocket = Utils::CreateSocketMasterLocalOnly(iSh);
-    iFiServSocket = Utils::CreateSocketMaster(iFi);
+    iShServSocket = ServerUtils::CreateSocketMasterLocalOnly(iSh);
+    iFiServSocket = ServerUtils::CreateSocketMaster(iFi);
 
     return {iShServSocket, iFiServSocket};
 }
 
 void PrintMessage(const int iSh, const int iFi) {
-    Utils::buoy("SHFD Shell and file server.");
-    Utils::buoy("Shell Server is listening on port " + std::to_string(iSh));
-    Utils::buoy("File Server is listening on port. " + std::to_string(iFi));
-}
-
-void tester(int i) {
-    while (true) {
-        Utils::buoy("checking...");
-        std::this_thread::sleep_for(std::chrono::minutes(1));
-        Utils::buoy("waitover...");
-    }
-    return;
+    ServerUtils::buoy("SHFD Shell and file server.");
+    ServerUtils::buoy("Shell Server is listening on port " + std::to_string(iSh));
+    ServerUtils::buoy("File Server is listening on port. " + std::to_string(iFi));
 }
 
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
     if (ServSockets.shell < 0 || ServSockets.file < 0) {
-        Utils::buoy("Server unable to start.");
+        ServerUtils::buoy("Server unable to start.");
         return;
     }
 
@@ -76,29 +67,24 @@ void StartServer(ServerSockets ServSockets,
         // the correct callback to call;
         std::function<void(const int)> TheCallback_PTR{nullptr};
         Accepted accepted_STR =
-            Utils::PollEither((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+            ServerUtils::PollEither((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
                               (socklen_t *)&iClientAddrLen);
 
         if (accepted_STR.accepted == ServSockets.shell) {
             // Shell server
-            Utils::buoy("Shell client incoming");
+            ServerUtils::buoy("Shell client incoming");
             TheCallback_PTR = ShellCallback;
 
         } else if (accepted_STR.accepted == ServSockets.file) {
             // File server
-            Utils::buoy("File client incoming");
+            ServerUtils::buoy("File client incoming");
             TheCallback_PTR = FileCallback;
 
         } else {
-            Utils::buoy("Failed to accept any client");
+            ServerUtils::buoy("Failed to accept any client");
         }
 
         Worker = std::thread(TheCallback_PTR, accepted_STR.newsocket);
-
-        // MUST WITHIN A SCOPE THAT WILL NOT BE TERMINATED
-        // std::thread CallbackThread(TheCallback_PTR, accepted_STR.newsocket);
-        // std::swap(CallbackThread, Worker);
-        // Worker.detach();
     }
 }
 
@@ -114,7 +100,7 @@ void DoShellCallback(const int iServFD) {
     std::string WelcomeMessage = "Shell Server Connected.";
 
     // NEW - Shell client limit
-    bool bIsExceedLimt{!(Utils::ShellServerLock.try_lock())};
+    bool bIsExceedLimt{!(ServerUtils::ShellServerLock.try_lock())};
     if (bIsExceedLimt) {
         WelcomeMessage =
             "Shell Server has exceeded its limit, terminating session...";
@@ -128,7 +114,7 @@ void DoShellCallback(const int iServFD) {
     if (bIsExceedLimt) {
         close(iServFD);
         shutdown(iServFD, 1);
-        Utils::buoy("Shell client Blocked");
+        ServerUtils::buoy("Shell client Blocked");
         return;
     }
 
@@ -156,15 +142,15 @@ void DoShellCallback(const int iServFD) {
             NewRes->shell(ShellRes);
         } catch (const std::string &e) {
             NewRes->fail(e);
-            Utils::buoy(e);
+            ServerUtils::buoy(e);
         }
     }
-    Utils::buoy("Shell connection closed by client.");
+    ServerUtils::buoy("Shell connection closed by client.");
 
     close(iServFD);
     shutdown(iServFD, 1);
     // Accepting new shell client.
-    Utils::ShellServerLock.unlock();
+    ServerUtils::ShellServerLock.unlock();
 }
 
 void DoFileCallback(const int iServFD) {
@@ -218,7 +204,7 @@ void DoFileCallback(const int iServFD) {
 
         NewRes->file(res, message);
     }
-    Utils::buoy("File Connection closed by client.");
+    ServerUtils::buoy("File Connection closed by client.");
     close(iServFD);
     shutdown(iServFD, 1);
 }
@@ -251,12 +237,12 @@ ServerPorts ParsOpt(int argc, char **argv, const char *optstring) {
             }
             case 'd': {
                 // front run
-                Utils::bRunningBackground = false;
+                ServerUtils::bRunningBackground = false;
                 break;
             }
             case 'D': {
                 // debug
-                Utils::bIsDebugging = true;
+                ServerUtils::bIsDebugging = true;
                 FileClient::bIsDebugging = true;
                 break;
             }

@@ -43,7 +43,7 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
             execve(command.c_str(), aArgsPtr, environ);
         }
 
-        Utils::buoy("execve - program cannot be found");
+        ServerUtils::buoy("execve - program cannot be found");
         exit(-2);
     } else {
         // parent process

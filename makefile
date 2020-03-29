@@ -6,12 +6,12 @@ run: ALL
 test:
 		# PLACEHOLDER
 
-build: lib.o Utils.o main.o  ShellClient.o STDResponse.o FileClient.o
+build: lib.o ServerUtils.o main.o  ShellClient.o STDResponse.o FileClient.o ThreadMan.o
 		@echo -----------------------
 		@echo "Building..."
 		@echo -----------------------
 
-		g++ -std=c++11 -pthread main.o lib.o Utils.o ShellClient.o FileClient.o STDResponse.o -o shfd
+		g++ -std=c++11 -pthread main.o lib.o ServerUtils.o ShellClient.o FileClient.o STDResponse.o ThreadMan.o -o shfd
 
 main.o: ./src/main.cpp
 		@echo -----------------------
@@ -41,6 +41,13 @@ STDResponse.o: ./src/components/STDResponse.cpp
 
 		g++ -c ./src/components/STDResponse.cpp
 
+ThreadMan.o: ./src/threads/ThreadMan.cpp
+		@echo -----------------------
+		@echo Building ThreadMan...
+		@echo -----------------------
+
+		g++ -c ./src/threads/ThreadMan.cpp
+
 lib.o: ./src/lib.cpp		
 		@echo -----------------------
 		@echo Building lib...
@@ -48,12 +55,12 @@ lib.o: ./src/lib.cpp
 
 		g++ -c ./src/lib.cpp
 
-Utils.o: ./src/Utils.cpp		
+ServerUtils.o: ./src/ServerUtils.cpp		
 		@echo -----------------------
-		@echo Building Utils...
+		@echo Building ServerUtils...
 		@echo -----------------------
 
-		g++ -c ./src/Utils.cpp
+		g++ -c ./src/ServerUtils.cpp
 
 tidy:   
 	  @echo -----------------------
