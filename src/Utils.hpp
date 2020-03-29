@@ -56,10 +56,16 @@ class Utils {
                                            const int queue = 32);
 
     /**
-     *  Accept avalible client.
+     * Poll from the two sockets, accepting when one become avalible.
      * */
-    static Accepted AcceptAny(int *fds, int count, sockaddr *addr,
-                              socklen_t *addrlen);
+    static Accepted PollEither(int *fds, int count, sockaddr *addr,
+                               socklen_t *addrlen, int TimeOut = -1);
+
+    /**
+     * Non-block reading of the data.
+     * */
+
+    int recv_nonblock(int sd, char *buf, size_t max, int timeout);
 
     /**
      *  display or logging.

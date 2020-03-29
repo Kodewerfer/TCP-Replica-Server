@@ -1,7 +1,10 @@
 ALL: build tidy
 
 run: ALL
-		./shfd
+		./shfd -d -D
+
+test:
+		# PLACEHOLDER
 
 build: lib.o Utils.o main.o  ShellClient.o STDResponse.o FileClient.o
 		@echo -----------------------

@@ -1,18 +1,11 @@
-/**
- * Assignment for csc464/564
-
- *by
-
- * Jialin Li 002250729
- * Sun Jian 002244864
- **/
-
 #include "main.hpp"
 #define SHELL_DEFAULT 9000;
 #define FILE_DEFAULT 9001;
 int main(int arg, char *argv_main[], char *envp[]) {
+    if (signal(SIGINT, HandleSIGs) == SIG_ERR)
+        Utils::buoy("can't catch SIGINT");
+
     ServerPorts FromOpts = ParsOpt(arg, argv_main, "f:s:dD");
-    signal(SIGPIPE, SIG_IGN);
     if (Utils::bRunningBackground) {
         // daemon
         daemonize();
@@ -56,6 +49,15 @@ void PrintMessage(const int iSh, const int iFi) {
     Utils::buoy("File Server is listening on port. " + std::to_string(iFi));
 }
 
+void tester(int i) {
+    while (true) {
+        Utils::buoy("checking...");
+        std::this_thread::sleep_for(std::chrono::minutes(1));
+        Utils::buoy("waitover...");
+    }
+    return;
+}
+
 void StartServer(ServerSockets ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
@@ -67,14 +69,15 @@ void StartServer(ServerSockets ServSockets,
     sockaddr_in ClientAddrSTR;
     unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
 
+    std::thread Worker;
     // loop accepting
     while (true) {
         int iSockets[2]{ServSockets.shell, ServSockets.file};
         // the correct callback to call;
         std::function<void(const int)> TheCallback_PTR{nullptr};
         Accepted accepted_STR =
-            Utils::AcceptAny((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
-                             (socklen_t *)&iClientAddrLen);
+            Utils::PollEither((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+                              (socklen_t *)&iClientAddrLen);
 
         if (accepted_STR.accepted == ServSockets.shell) {
             // Shell server
@@ -90,9 +93,12 @@ void StartServer(ServerSockets ServSockets,
             Utils::buoy("Failed to accept any client");
         }
 
-        // MUST WITHIN A SCOPE THAT WILL NOT BE TERMINATE
-        std::thread Worker(TheCallback_PTR, accepted_STR.newsocket);
-        Worker.detach();
+        Worker = std::thread(TheCallback_PTR, accepted_STR.newsocket);
+
+        // MUST WITHIN A SCOPE THAT WILL NOT BE TERMINATED
+        // std::thread CallbackThread(TheCallback_PTR, accepted_STR.newsocket);
+        // std::swap(CallbackThread, Worker);
+        // Worker.detach();
     }
 }
 
@@ -159,20 +165,6 @@ void DoShellCallback(const int iServFD) {
     shutdown(iServFD, 1);
     // Accepting new shell client.
     Utils::ShellServerLock.unlock();
-}
-
-void DoShellBlock(const int iServFD) {
-    const int ALEN = 256;
-    char req[ALEN];
-    // send welcome message
-    const char welcome[] =
-        "Shell Server has exceeded its client limit. Terminating session...";
-    send(iServFD, "\n", 1, 0);
-    send(iServFD, welcome, strlen(welcome), 0);
-    send(iServFD, "\n", 1, 0);
-
-    close(iServFD);
-    shutdown(iServFD, 1);
 }
 
 void DoFileCallback(const int iServFD) {
@@ -306,3 +298,5 @@ void daemonize() {
 
     return;
 }
+
+void HandleSIGs(int sig) { std::cout << "SIGQUIT"; }

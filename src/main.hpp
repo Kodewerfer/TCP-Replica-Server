@@ -39,3 +39,6 @@ void DoFileCallback(const int);
 
 ServerPorts ParsOpt(int, char **, const char *);
 void daemonize();
+
+// Signal handles
+void HandleSIGs(int);

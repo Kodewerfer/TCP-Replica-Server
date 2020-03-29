@@ -47,31 +47,46 @@ int Utils::CreateSocketMasterLocalOnly(const unsigned short port,
     return CreateSocket(port, INADDR_LOOPBACK, queue);
 }
 
-Accepted Utils::AcceptAny(int *fds, int count, sockaddr *addr,
-                          socklen_t *addrlen) {
-    fd_set readfds;
-    int maxfd, fd;
-    unsigned int i;
-    int status;
+Accepted Utils::PollEither(int *fds, int count, sockaddr *addr,
+                           socklen_t *addrlen, int TimeOut) {
+    pollfd PollFromSocks[count]{0};
 
-    FD_ZERO(&readfds);
-    maxfd = -1;
-    for (i = 0; i < count; i++) {
-        FD_SET(fds[i], &readfds);
-        if (fds[i] > maxfd) maxfd = fds[i];
+    for (int i = 0; i < count; i++) {
+        PollFromSocks[i].fd = fds[i];
+        PollFromSocks[i].events = POLLIN;
     }
-    status = select(maxfd + 1, &readfds, NULL, NULL, NULL);
-    if (status < 0) return {-1, -1};
-    fd = -1;
-    for (i = 0; i < count; i++)
-        if (FD_ISSET(fds[i], &readfds)) {
-            fd = fds[i];
-            break;
-        }
-    if (fd == -1)
-        return {-1, -1};
-    else
-        return {fd, accept(fd, addr, addrlen)};
+
+    int polled = poll(PollFromSocks, count, TimeOut);
+
+    if (polled == 0) throw "NODATA";
+    if (polled == -1) throw "ERRPOL";
+
+    // return recv(sd, buf, max, 0);
+
+    int ActiveFD{-2};
+
+    if (PollFromSocks[0].revents & POLLIN) {
+        ActiveFD = PollFromSocks[0].fd;
+    }
+
+    if (PollFromSocks[1].revents & POLLIN) {
+        ActiveFD = PollFromSocks[1].fd;
+    }
+
+    return {ActiveFD, accept(ActiveFD, addr, addrlen)};
+}
+
+int recv_nonblock(int sd, char *buf, size_t max, int timeout) {
+    struct pollfd pollrec;
+    pollrec.fd = sd;
+    pollrec.events = POLLIN;
+
+    int polled = poll(&pollrec, 1, timeout);
+
+    if (polled == 0) return FLAG_NO_DATA;
+    if (polled == -1) return -1;
+
+    return recv(sd, buf, max, 0);
 }
 
 void Utils::buoy(std::string message) {
