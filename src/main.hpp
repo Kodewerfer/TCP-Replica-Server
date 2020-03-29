@@ -26,7 +26,7 @@ struct OptParsed {
 
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
-void CreateThreads(ServerSockets &ServSockets,
+void CreateThreads(ServerSockets &ServSockets, OptParsed,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback);
 

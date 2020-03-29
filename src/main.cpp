@@ -15,18 +15,17 @@ int main(int arg, char *argv_main[], char *envp[]) {
         daemonize();
     }
 
-    const int iShPort{FromOpts.sh};
-    const int iFiPort{FromOpts.fi};
-
     ServerSockets ServSockets;
     try {
+        const int iShPort{FromOpts.sh};
+        const int iFiPort{FromOpts.fi};
         ServSockets = InitServer(iShPort, iFiPort);
         PrintMessage(iShPort, iFiPort);
     } catch (char const *msg) {
         ServerUtils::buoy(msg);
     }
 
-    CreateThreads(ServSockets, DoShellCallback, DoFileCallback);
+    CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
 
     // FIXME
     while (true) {
@@ -59,11 +58,11 @@ void PrintMessage(const int iSh, const int iFi) {
                       std::to_string(iFi));
 }
 
-void CreateThreads(ServerSockets &ServSockets,
+void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback) {
-    int i = 0;
-    while (i < 3) {
+    int i = 1;
+    while (i <= FromOpts.tincr) {
         std::thread WorkerOne(ThreadsMan::ThreadManager, ServSockets,
                               ShellCallback, FileCallback);
         WorkerOne.detach();
