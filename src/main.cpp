@@ -1,11 +1,15 @@
 #include "main.hpp"
+
 #define SHELL_DEFAULT 9000;
 #define FILE_DEFAULT 9001;
+#define THREAD_INCR_DEFAULT 2;
+#define THREAD_MAX_DEFAULT 4;
+
 int main(int arg, char *argv_main[], char *envp[]) {
     if (signal(SIGINT, HandleSIGs) == SIG_ERR)
         ServerUtils::buoy("can't catch SIGINT");
 
-    ServerPorts FromOpts = ParsOpt(arg, argv_main, "f:s:dD");
+    OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:dD");
     if (ServerUtils::bRunningBackground) {
         // daemon
         daemonize();
@@ -24,7 +28,7 @@ int main(int arg, char *argv_main[], char *envp[]) {
 
     CreateThreads(ServSockets, DoShellCallback, DoFileCallback);
 
-    // TODO:
+    // FIXME
     while (true) {
     }
 
@@ -197,24 +201,41 @@ void DoFileCallback(const int iServFD) {
  *
  **/
 
-ServerPorts ParsOpt(int argc, char **argv, const char *optstring) {
+OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
     int iShPort = SHELL_DEFAULT;
     int iFiPort = FILE_DEFAULT;
+    int iThreadIncr = THREAD_INCR_DEFAULT;
+    int iThreadMax = THREAD_MAX_DEFAULT;
 
     int opt;
     while ((opt = getopt(argc, argv, optstring)) != -1) {
         switch (opt) {
-            case 's': {  // shell port
+            case 's': {
+                // shell port
                 int temp = atoi(optarg);
                 if (temp > 0) iShPort = temp;
 
                 break;
             }
             case 'f': {
+                // file port
                 int temp = atoi(optarg);
                 if (temp > 0) iFiPort = temp;
 
-                // file port
+                break;
+            }
+            case 't': {
+                // t incr
+                int temp = atoi(optarg);
+                if (temp > 0) iThreadIncr = temp;
+
+                break;
+            }
+            case 'T': {
+                // t max
+                int temp = atoi(optarg);
+                if (temp > 0) iThreadMax = temp;
+
                 break;
             }
             case 'd': {

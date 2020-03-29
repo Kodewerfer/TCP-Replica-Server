@@ -25,11 +25,6 @@ struct ServerSockets {
     int file;
 };
 
-struct ServerPorts {
-    int sh;
-    int fi;
-};
-
 struct Accepted {
     int accepted;
     int newsocket;

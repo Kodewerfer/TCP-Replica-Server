@@ -17,6 +17,11 @@
 #include "components/ShellClient.hpp"
 #include "threads/ThreadsMan.hpp"
 
+struct OptParsed {
+    int sh;
+    int fi;
+};
+
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
 void CreateThreads(ServerSockets &ServSockets,
@@ -26,7 +31,7 @@ void CreateThreads(ServerSockets &ServSockets,
 void DoShellCallback(const int);
 void DoFileCallback(const int);
 
-ServerPorts ParsOpt(int, char **, const char *);
+OptParsed ParsOpt(int, char **, const char *);
 void daemonize();
 
 // Signal handles
