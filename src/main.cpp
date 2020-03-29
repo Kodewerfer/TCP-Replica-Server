@@ -22,7 +22,11 @@ int main(int arg, char *argv_main[], char *envp[]) {
         ServerUtils::buoy(msg);
     }
 
-    StartServer(ServSockets, DoShellCallback, DoFileCallback);
+    CreateThreads(ServSockets, DoShellCallback, DoFileCallback);
+
+    // TODO:
+    while (true) {
+    }
 
     return EXIT_SUCCESS;
 }
@@ -51,42 +55,18 @@ void PrintMessage(const int iSh, const int iFi) {
                       std::to_string(iFi));
 }
 
-void StartServer(ServerSockets &ServSockets,
-                 std::function<void(const int)> ShellCallback,
-                 std::function<void(const int)> FileCallback) {
-    if (ServSockets.shell < 0 || ServSockets.file < 0) {
-        ServerUtils::buoy("Server unable to start.");
-        return;
-    }
+void CreateThreads(ServerSockets &ServSockets,
+                   std::function<void(const int)> ShellCallback,
+                   std::function<void(const int)> FileCallback) {
+    int i = 0;
+    while (i < 3) {
+        std::thread WorkerOne(ThreadsMan::ThreadManager, ServSockets,
+                              ShellCallback, FileCallback);
+        WorkerOne.detach();
 
-    sockaddr_in ClientAddrSTR;
-    unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
+        ThreadsMan::ThreadsCount += 1;
 
-    std::thread Worker;
-    // loop accepting
-    while (true) {
-        int iSockets[2]{ServSockets.shell, ServSockets.file};
-        // the correct callback to call;
-        std::function<void(const int)> TheCallback_PTR{nullptr};
-        Accepted accepted_STR = ServerUtils::PollEither(
-            (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
-            (socklen_t *)&iClientAddrLen);
-
-        if (accepted_STR.accepted == ServSockets.shell) {
-            // Shell server
-            ServerUtils::buoy("Shell client incoming");
-            TheCallback_PTR = ShellCallback;
-
-        } else if (accepted_STR.accepted == ServSockets.file) {
-            // File server
-            ServerUtils::buoy("File client incoming");
-            TheCallback_PTR = FileCallback;
-
-        } else {
-            ServerUtils::buoy("Failed to accept any client");
-        }
-
-        Worker = std::thread(TheCallback_PTR, accepted_STR.newsocket);
+        i++;
     }
 }
 

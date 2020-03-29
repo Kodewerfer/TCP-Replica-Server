@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #include <string>
-#include <vector>
+#include <thread>
 
 #include "Lib.hpp"
 #include "ServerUtils.hpp"
@@ -19,9 +19,9 @@
 
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
-void StartServer(ServerSockets &ServSockets,
-                 std::function<void(const int)> ShellCallback,
-                 std::function<void(const int)> FileCallback);
+void CreateThreads(ServerSockets &ServSockets,
+                   std::function<void(const int)> ShellCallback,
+                   std::function<void(const int)> FileCallback);
 
 void DoShellCallback(const int);
 void DoFileCallback(const int);
