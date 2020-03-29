@@ -51,7 +51,7 @@ void PrintMessage(const int iSh, const int iFi) {
                       std::to_string(iFi));
 }
 
-void StartServer(ServerSockets ServSockets,
+void StartServer(ServerSockets &ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback) {
     if (ServSockets.shell < 0 || ServSockets.file < 0) {
@@ -124,9 +124,9 @@ void DoShellCallback(const int iServFD) {
     ShellClient *NewClient = new ShellClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
-    while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+    while ((Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
         const std::string sRequest(req);
-        std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
+        std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
 
         if (strcmp(RequestTokenized.at(0), "CPRINT") == 0) {
             std::string &LastOutput = NewClient->GetLastOutput();
@@ -167,9 +167,9 @@ void DoFileCallback(const int iServFD) {
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
-    while ((lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+    while ((Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
         const std::string sRequest(req);
-        std::vector<char *> RequestTokenized = lib::Tokenize(sRequest);
+        std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
 
         int res{-5};

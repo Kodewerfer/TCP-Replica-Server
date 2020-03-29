@@ -20,6 +20,16 @@
 
 const int FLAG_NO_DATA{-2};
 
+struct ServerSockets {
+    int shell;
+    int file;
+};
+
+struct ServerPorts {
+    int sh;
+    int fi;
+};
+
 struct Accepted {
     int accepted;
     int newsocket;

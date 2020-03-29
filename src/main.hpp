@@ -7,31 +7,19 @@
 #include <syslog.h>
 #include <unistd.h>
 
-#include <functional>
 #include <string>
-#include <thread>
 #include <vector>
 
+#include "Lib.hpp"
 #include "ServerUtils.hpp"
 #include "components/FileClient.hpp"
 #include "components/STDResponse.hpp"
 #include "components/ShellClient.hpp"
-#include "lib.hpp"
 #include "threads/ThreadsMan.hpp"
-
-struct ServerSockets {
-    int shell;
-    int file;
-};
-
-struct ServerPorts {
-    int sh;
-    int fi;
-};
 
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
-void StartServer(ServerSockets ServSockets,
+void StartServer(ServerSockets &ServSockets,
                  std::function<void(const int)> ShellCallback,
                  std::function<void(const int)> FileCallback);
 

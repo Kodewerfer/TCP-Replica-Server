@@ -6,12 +6,12 @@ run: ALL
 test:
 		# PLACEHOLDER
 
-build: lib.o ServerUtils.o main.o  ShellClient.o STDResponse.o FileClient.o ThreadMan.o
+build: Lib.o ServerUtils.o main.o  ShellClient.o STDResponse.o FileClient.o ThreadMan.o
 		@echo -----------------------
 		@echo "Building..."
 		@echo -----------------------
 
-		g++ -std=c++11 -pthread main.o lib.o ServerUtils.o ShellClient.o FileClient.o STDResponse.o ThreadMan.o -o shfd
+		g++ -std=c++11 -pthread main.o Lib.o ServerUtils.o ShellClient.o FileClient.o STDResponse.o ThreadMan.o -o shfd
 
 main.o: ./src/main.cpp
 		@echo -----------------------
@@ -48,12 +48,12 @@ ThreadMan.o: ./src/threads/ThreadMan.cpp
 
 		g++ -c ./src/threads/ThreadMan.cpp
 
-lib.o: ./src/lib.cpp		
+Lib.o: ./src/Lib.cpp		
 		@echo -----------------------
-		@echo Building lib...
+		@echo Building Lib...
 		@echo -----------------------
 
-		g++ -c ./src/lib.cpp
+		g++ -c ./src/Lib.cpp
 
 ServerUtils.o: ./src/ServerUtils.cpp		
 		@echo -----------------------

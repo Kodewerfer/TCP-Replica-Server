@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace lib {
+namespace Lib {
 int readline(int, char *, size_t);
 int readline(int, std::string &, size_t);
 std::vector<char *> Tokenize(const std::string &str);

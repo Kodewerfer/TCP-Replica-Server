@@ -1,5 +1,12 @@
 #pragma once
 
+#include <functional>
+#include <string>
+#include <thread>
+
+#include "../ServerUtils.hpp"
+#include "../Lib.hpp"
+
 class ThreadsMan {
    private:
     /* data */
@@ -8,5 +15,7 @@ class ThreadsMan {
      * Fuction server as the bcackground thread function,
      * invokes other functions
      * */
-    static void ThreadManager();
+    static void ThreadManager(ServerSockets &ServSockets,
+                              std::function<void(const int)> ShellCallback,
+                              std::function<void(const int)> FileCallback);
 };

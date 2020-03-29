@@ -1,6 +1,6 @@
-#include "lib.hpp"
+#include "Lib.hpp"
 
-namespace lib {
+namespace Lib {
 int readline(int fd, char *buf_str, size_t max) {
     size_t i;
     int begin = 1;
@@ -54,4 +54,4 @@ std::vector<char *> Tokenize(const std::string &sUserInput) {
 
     return VWords;
 }
-}  // namespace lib
+}  // namespace Lib

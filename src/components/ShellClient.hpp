@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "../ServerUtils.hpp"
-#include "../lib.hpp"
+#include "../Lib.hpp"
 
 class ShellClient {
    private:
