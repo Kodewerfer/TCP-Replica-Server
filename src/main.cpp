@@ -45,8 +45,10 @@ ServerSockets InitServer(int iSh, int iFi) {
 
 void PrintMessage(const int iSh, const int iFi) {
     ServerUtils::buoy("SHFD Shell and file server.");
-    ServerUtils::buoy("Shell Server is listening on port " + std::to_string(iSh));
-    ServerUtils::buoy("File Server is listening on port. " + std::to_string(iFi));
+    ServerUtils::buoy("Shell Server is listening on port " +
+                      std::to_string(iSh));
+    ServerUtils::buoy("File Server is listening on port. " +
+                      std::to_string(iFi));
 }
 
 void StartServer(ServerSockets ServSockets,
@@ -66,9 +68,9 @@ void StartServer(ServerSockets ServSockets,
         int iSockets[2]{ServSockets.shell, ServSockets.file};
         // the correct callback to call;
         std::function<void(const int)> TheCallback_PTR{nullptr};
-        Accepted accepted_STR =
-            ServerUtils::PollEither((int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
-                              (socklen_t *)&iClientAddrLen);
+        Accepted accepted_STR = ServerUtils::PollEither(
+            (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+            (socklen_t *)&iClientAddrLen);
 
         if (accepted_STR.accepted == ServSockets.shell) {
             // Shell server
