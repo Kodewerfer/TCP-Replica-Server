@@ -17,8 +17,8 @@
 #include "FileErrCode.hpp"
 
 struct LastRequest {
-    int fd;
-    int params;
+    const int fd;
+    const int params;
 };
 
 struct AccessCtl {
@@ -36,9 +36,16 @@ class FileClient {
     static std::map<std::string, AccessCtl> FileAccess;
 
    private:
+    // Stored FDs
     std::vector<int> OpenedFiles;
+    // Turn fd and param(if apply) to int.
     LastRequest PreprocessReq(std::vector<char *> Request);
-    int PreFilter(int fd);
+    /**
+     *   Check if the fs is valid.
+     *   If there is any file in this session been opened.
+     *   If This fd has been previously opened in this session.
+     * */
+    int FDChcker(int fd);
 
     // Statics
    public:

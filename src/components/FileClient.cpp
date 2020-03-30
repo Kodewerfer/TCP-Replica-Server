@@ -16,7 +16,7 @@ LastRequest FileClient::PreprocessReq(std::vector<char *> Request) {
     return {fd, params};
 }
 
-int FileClient::PreFilter(int fd) {
+int FileClient::FDChcker(int fd) {
     // filtering
     if (OpenedFiles.size() == 0) {
         return NO_PRE_OEPN;
@@ -74,7 +74,7 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     if (Req.params <= 0) {
         return PARAM_PARS;
     }
-    int FilterFlag{PreFilter(Req.fd)};
+    int FilterFlag{FDChcker(Req.fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
     }
@@ -95,7 +95,7 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
     if (Req.params <= 0) {
         return PARAM_PARS;
     }
-    int FilterFlag{PreFilter(Req.fd)};
+    int FilterFlag{FDChcker(Req.fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
     }
@@ -144,7 +144,7 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
 
-    int FilterFlag{PreFilter(fd)};
+    int FilterFlag{FDChcker(fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
     }
@@ -153,8 +153,10 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     std::string FileName = FdToName[fd];
     AccessCtl &Control = FileAccess[FileName];
 
+    std::unique_lock<std::mutex> WritingLock(Control.writeLock,
+                                             std::try_to_lock);
     // !! LOCKING !!
-    if (Control.reading > 0 || !Control.writeLock.try_lock()) {
+    if (Control.reading > 0 || !WritingLock.owns_lock()) {
         //  abort.
         throw std::string("ER-F-ACEDI");
     }
@@ -192,7 +194,7 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
 
-    int FilterFlag{PreFilter(fd)};
+    int FilterFlag{FDChcker(fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
     }
