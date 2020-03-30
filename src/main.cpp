@@ -63,11 +63,12 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
                    std::function<void(const int)> FileCallback) {
     int i = 1;
     while (i <= FromOpts.tincr) {
-        std::thread WorkerOne(ThreadsMan::ThreadManager, ServSockets,
-                              ShellCallback, FileCallback);
-        WorkerOne.detach();
+        std::thread Worker(ThreadsMan::ThreadManager, ServSockets,
+                           ShellCallback, FileCallback);
 
-        ThreadsMan::ThreadsCount += 1;
+        ThreadsMan::ThreadStash.push_back(move(Worker));
+        // Worker.detach();
+        ThreadsMan::incrThreadsCout();
 
         i++;
     }

@@ -22,12 +22,12 @@ const int FLAG_NO_DATA{-2};
 
 struct ServerSockets {
     int shell;
-    int file;  
+    int file;
 };
 
 struct Accepted {
-    int accepted;
-    int newsocket;
+    int accepted{-1};
+    int newsocket{-1};
 };
 
 class ServerUtils {
@@ -69,7 +69,6 @@ class ServerUtils {
     /**
      * Non-block reading of the data.
      * */
-
     int recv_nonblock(int sd, char *buf, size_t max, int timeout);
 
     /**

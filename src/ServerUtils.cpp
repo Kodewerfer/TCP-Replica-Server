@@ -52,6 +52,7 @@ int ServerUtils::CreateSocketMasterLocalOnly(const unsigned short port,
 Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
                                  socklen_t *addrlen, int TimeOut) {
     pollfd PollFromSocks[count]{0};
+    Accepted accpeted;
 
     for (int i = 0; i < count; i++) {
         PollFromSocks[i].fd = fds[i];
@@ -69,13 +70,15 @@ Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
 
     if (PollFromSocks[0].revents & POLLIN) {
         ActiveFD = PollFromSocks[0].fd;
-    }
-
-    if (PollFromSocks[1].revents & POLLIN) {
+    } else if (PollFromSocks[1].revents & POLLIN) {
         ActiveFD = PollFromSocks[1].fd;
     }
 
-    return {ActiveFD, accept(ActiveFD, addr, addrlen)};
+    if (ActiveFD == -2) throw "IMPOSB";
+
+    accpeted.accepted = ActiveFD;
+    accpeted.newsocket = accept(ActiveFD, addr, addrlen);
+    return accpeted;
 }
 
 int recv_nonblock(int sd, char *buf, size_t max, int timeout) {

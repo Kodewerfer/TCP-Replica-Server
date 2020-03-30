@@ -1,22 +1,31 @@
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "../Lib.hpp"
 #include "../ServerUtils.hpp"
 
 class ThreadsMan {
    private:
-    /* data */
+    static std::atomic<int> ThreadsCount;
+    static std::atomic<int> ThreadsActive;
+
    public:
+    static std::vector<std::thread> ThreadStash;
+    static void incrThreadsCout();
+    static void decrThreadsCout();
+    static int getThreadsCout() { return ThreadsCount; }
+
+    static void isActive();
+    static void notActive();
+    static int getActiveThreads() { return ThreadsActive; }
+
     /**
-     * Total number of threads, active or not
-     * */
-    static int ThreadsCount;
-    /**
-     * Fuction server as the bcackground thread function,
+     * Thread initialize with this function,
      * invokes other functions
      * */
     static void ThreadManager(ServerSockets ServSockets,

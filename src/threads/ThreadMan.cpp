@@ -1,6 +1,15 @@
 #include "ThreadsMan.hpp"
 
-int ThreadsMan::ThreadsCount{0};
+std::atomic<int> ThreadsMan::ThreadsCount{0};
+std::atomic<int> ThreadsMan::ThreadsActive{0};
+
+std::vector<std::thread> ThreadsMan::ThreadStash;
+
+void ThreadsMan::incrThreadsCout() { ThreadsCount += 1; }
+void ThreadsMan::decrThreadsCout() { ThreadsCount -= 1; }
+
+void ThreadsMan::isActive() { ThreadsActive += 1; }
+void ThreadsMan::notActive() { ThreadsActive -= 1; }
 
 void ThreadsMan::ThreadManager(ServerSockets ServSockets,
                                std::function<void(const int)> ShellCallback,
@@ -9,33 +18,54 @@ void ThreadsMan::ThreadManager(ServerSockets ServSockets,
         ServerUtils::buoy("Server unable to start.");
         return;
     }
-
     sockaddr_in ClientAddrSTR;
     unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
 
-    // loop accepting
+    /**
+     *  Thread's main loop
+     *  - handle client
+     *  - clean up thread if needed
+     * */
     while (true) {
+        /**
+         *  Client handle
+         * */
+
         int iSockets[2]{ServSockets.shell, ServSockets.file};
-        // the correct callback to call;
         std::function<void(const int)> TheCallback_PTR{nullptr};
-        Accepted accepted_STR = ServerUtils::PollEither(
-            (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
-            (socklen_t *)&iClientAddrLen);
+        Accepted accepted_STR;
 
-        if (accepted_STR.accepted == ServSockets.shell) {
-            // Shell server
-            ServerUtils::buoy("Shell client incoming");
-            TheCallback_PTR = ShellCallback;
+        try {
+            accepted_STR = ServerUtils::PollEither(
+                (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
+                (socklen_t *)&iClientAddrLen, 60000);  // timeout set to 1min.
+        } catch (const char *e) {
+            // No data or Poll error
+        }
+        // Handle the request, invoke callback.
+        if (accepted_STR.accepted != -1 && accepted_STR.newsocket != -1) {
+            // active status
+            ThreadsMan::isActive();
+            if (accepted_STR.accepted == ServSockets.shell) {
+                // Shell server
+                ServerUtils::buoy("Shell client incoming");
+                TheCallback_PTR = ShellCallback;
 
-        } else if (accepted_STR.accepted == ServSockets.file) {
-            // File server
-            ServerUtils::buoy("File client incoming");
-            TheCallback_PTR = FileCallback;
+            } else if (accepted_STR.accepted == ServSockets.file) {
+                // File server
+                ServerUtils::buoy("File client incoming");
+                TheCallback_PTR = FileCallback;
+            }
 
-        } else {
-            ServerUtils::buoy("Failed to accept any client");
+            TheCallback_PTR(accepted_STR.newsocket);
+            // active stauts
+            ThreadsMan::notActive();
         }
 
-        TheCallback_PTR(accepted_STR.newsocket);
+        // No data or time out proceed to clean up
+
+        /**
+         * Thread cleanup
+         * */
     }
 }

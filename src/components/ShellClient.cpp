@@ -30,6 +30,7 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
     if (iPId == 0) {
         // child process
 
+        /* Pipe the console outputs to the parent to store. */
         close(TheLine[0]);
         dup2(TheLine[1], STDOUT_FILENO);
         dup2(TheLine[1], STDERR_FILENO);

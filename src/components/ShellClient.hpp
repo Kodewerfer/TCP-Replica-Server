@@ -10,18 +10,26 @@
 #include <string>
 #include <vector>
 
-#include "../ServerUtils.hpp"
 #include "../Lib.hpp"
+#include "../ServerUtils.hpp"
 
 class ShellClient {
    private:
+    /**
+     * path prefix for execv
+     */
     static std::vector<std::string> FileNamePrefixs;
+    /**
+     * Store the last execv output
+     */
     std::string sLastOutput;
     void ResetLastOutput() { sLastOutput = ""; }
 
    public:
     ShellClient();
     std::string &GetLastOutput() { return sLastOutput; };
-    //
+    /**
+     * Run the command
+     */
     int RunShellCommand(std::vector<char *> &);
 };

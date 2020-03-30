@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -21,8 +22,8 @@ struct LastRequest {
 };
 
 struct AccessCtl {
-    int reading{0};
-    int writing{0};
+    std::atomic<int> reading{0};
+    std::atomic<int> writing{0};
     std::mutex writeLock;
 };
 
