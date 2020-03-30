@@ -7,6 +7,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include <mutex>
 #include <string>
 #include <thread>
 

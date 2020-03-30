@@ -4,14 +4,35 @@ std::atomic<int> ThreadsMan::ThreadsCount{0};
 std::atomic<int> ThreadsMan::ThreadsActive{0};
 
 std::vector<std::thread> ThreadsMan::ThreadStash;
+std::condition_variable ThreadsMan::condCreateMore;
 
 void ThreadsMan::incrThreadsCout() { ThreadsCount += 1; }
 void ThreadsMan::decrThreadsCout() { ThreadsCount -= 1; }
 
-void ThreadsMan::isActive() { ThreadsActive += 1; }
-void ThreadsMan::notActive() { ThreadsActive -= 1; }
+void ThreadsMan::isActive() {
+    ThreadsActive += 1;
+    ServerUtils::rowdy("A Threads is Active.");
+    ServerUtils::rowdy("Threads Count now : " +
+                       std::to_string(getThreadsCout()));
+    ServerUtils::rowdy("Threads Active now : " +
+                       std::to_string(getActiveThreads()));
+    /**
+     *  If current threads all used up
+     *  Notify main thread to create more
+     * */
 
-void ThreadsMan::ThreadManager(ServerSockets ServSockets,
+    condCreateMore.notify_one();
+}
+void ThreadsMan::notActive() {
+    ThreadsActive -= 1;
+    ServerUtils::rowdy("A Threads is Deactived.");
+    ServerUtils::rowdy("Threads Count now : " +
+                       std::to_string(getThreadsCout()));
+    ServerUtils::rowdy("Threads Active now : " +
+                       std::to_string(getActiveThreads()));
+}
+
+void ThreadsMan::ForeRunner(ServerSockets ServSockets,
                                std::function<void(const int)> ShellCallback,
                                std::function<void(const int)> FileCallback) {
     if (ServSockets.shell < 0 || ServSockets.file < 0) {
@@ -41,6 +62,9 @@ void ThreadsMan::ThreadManager(ServerSockets ServSockets,
                 (socklen_t *)&iClientAddrLen, 60000);  // timeout set to 1min.
         } catch (const char *e) {
             // No data or Poll error
+
+            // For testing
+            // ServerUtils::buoy(std::string(e));
         }
         // Handle the request, invoke callback.
         if (accepted_STR.accepted != -1 && accepted_STR.newsocket != -1) {

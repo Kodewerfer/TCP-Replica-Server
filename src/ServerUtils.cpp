@@ -124,15 +124,12 @@ void ServerUtils::rowdy(std::string message) {
         // log
         std::ofstream log;
         log.open("shfd.log", std::ios::app);
-        log << std::asctime(std::localtime(&result));
-        log << message << "\n"
-            << "\n";
+        log << "DEBUG -- " << message << "\n";
         log.close();
     } else {
         // display to console
         std::cout.flush();
-        std::cout << std::asctime(std::localtime(&result)) << "  : " << message
-                  << "\n";
+        std::cout << "DEBUG -- " << message << "\n";
     }
 }
 

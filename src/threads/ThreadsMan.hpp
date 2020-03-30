@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <string>
 #include <thread>
@@ -16,6 +17,8 @@ class ThreadsMan {
 
    public:
     static std::vector<std::thread> ThreadStash;
+    static std::condition_variable condCreateMore;
+
     static void incrThreadsCout();
     static void decrThreadsCout();
     static int getThreadsCout() { return ThreadsCount; }
@@ -28,7 +31,7 @@ class ThreadsMan {
      * Thread initialize with this function,
      * invokes other functions
      * */
-    static void ThreadManager(ServerSockets ServSockets,
+    static void ForeRunner(ServerSockets ServSockets,
                               std::function<void(const int)> ShellCallback,
                               std::function<void(const int)> FileCallback);
 };

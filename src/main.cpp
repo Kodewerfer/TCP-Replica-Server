@@ -25,10 +25,25 @@ int main(int arg, char *argv_main[], char *envp[]) {
         ServerUtils::buoy(msg);
     }
 
-    CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
-
-    // FIXME
+    /**
+     *   Seperated Accepting and Creating logics.
+     *   Main thread handle creation while threads themselves handle accepting
+     *   new client.
+     *  */
+    std::mutex LoopLock;
+    std::unique_lock<std::mutex> Locker(LoopLock);
     while (true) {
+        // wait on condition varible notification.
+        ThreadsMan::condCreateMore.wait(Locker, []() {
+            return (ThreadsMan::getThreadsCout() ==
+                    ThreadsMan::getActiveThreads());
+        });
+        ServerUtils::rowdy("Main thread awaken, creating threads...");
+        CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
+        ServerUtils::rowdy("Threads Count now : " +
+                           std::to_string(ThreadsMan::getThreadsCout()));
+        ServerUtils::rowdy("Threads Active now : " +
+                           std::to_string(ThreadsMan::getActiveThreads()));
     }
 
     return EXIT_SUCCESS;
@@ -63,8 +78,8 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
                    std::function<void(const int)> FileCallback) {
     int i = 1;
     while (i <= FromOpts.tincr) {
-        std::thread Worker(ThreadsMan::ThreadManager, ServSockets,
-                           ShellCallback, FileCallback);
+        std::thread Worker(ThreadsMan::ForeRunner, ServSockets, ShellCallback,
+                           FileCallback);
 
         ThreadsMan::ThreadStash.push_back(move(Worker));
         // Worker.detach();
