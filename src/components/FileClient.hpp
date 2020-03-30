@@ -28,17 +28,23 @@ struct AccessCtl {
 };
 
 class FileClient {
+    // Statics
    private:
-    std::vector<int> OpenedFiles;
-    LastRequest PreprocessReq(std::vector<char *> Request);
-    int PreFilter(int fd);
     // file access control
     static std::map<int, std::string> FdToName;
     static std::map<std::string, int> NameToFd;
     static std::map<std::string, AccessCtl> FileAccess;
 
+   private:
+    std::vector<int> OpenedFiles;
+    LastRequest PreprocessReq(std::vector<char *> Request);
+    int PreFilter(int fd);
+
+    // Statics
    public:
     static bool bIsDebugging;
+
+   public:
     int FOPEN(std::vector<char *> Request, int &outPreFd);
     int FSEEK(std::vector<char *> Request);
     int FREAD(std::vector<char *> Request, std::string &outMessage);

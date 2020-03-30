@@ -35,13 +35,13 @@ int main(int arg, char *argv_main[], char *envp[]) {
     while (true) {
         // wait on condition varible notification.
         ThreadsMan::condCreateMore.wait(Locker, []() {
-            return (ThreadsMan::getThreadsCout() ==
+            return (ThreadsMan::getThreadsCount() ==
                     ThreadsMan::getActiveThreads());
         });
         ServerUtils::rowdy("Main thread awaken, creating threads...");
         CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
         ServerUtils::rowdy("Threads Count now : " +
-                           std::to_string(ThreadsMan::getThreadsCout()));
+                           std::to_string(ThreadsMan::getThreadsCount()));
         ServerUtils::rowdy("Threads Active now : " +
                            std::to_string(ThreadsMan::getActiveThreads()));
     }
@@ -76,14 +76,19 @@ void PrintMessage(const int iSh, const int iFi) {
 void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback) {
+    const int MaxThread = FromOpts.tincr + FromOpts.tmax;
     int i = 1;
     while (i <= FromOpts.tincr) {
+        if (ThreadsMan::getThreadsCount() == MaxThread) {
+            ServerUtils::rowdy("Max Thread Reached, Abort.");
+            break;
+        }
         std::thread Worker(ThreadsMan::ForeRunner, ServSockets, ShellCallback,
                            FileCallback);
 
         ThreadsMan::ThreadStash.push_back(move(Worker));
         // Worker.detach();
-        ThreadsMan::incrThreadsCout();
+        ThreadsMan::incrThreadsCount();
 
         i++;
     }

@@ -213,8 +213,8 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     return res;
 }
 
+// close all fd.
 FileClient::~FileClient() {
-    // close all fd.
     if (OpenedFiles.size() > 0) {
         for (auto ele : OpenedFiles) {
             close(ele);

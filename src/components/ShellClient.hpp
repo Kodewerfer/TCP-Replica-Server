@@ -19,6 +19,8 @@ class ShellClient {
      * path prefix for execv
      */
     static std::vector<std::string> FileNamePrefixs;
+
+   private:
     /**
      * Store the last execv output
      */

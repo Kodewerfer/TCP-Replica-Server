@@ -19,11 +19,11 @@ class ThreadsMan {
     static std::vector<std::thread> ThreadStash;
     static std::condition_variable condCreateMore;
 
-    static void incrThreadsCout();
-    static void decrThreadsCout();
-    static int getThreadsCout() { return ThreadsCount; }
+    static void incrThreadsCount();
+    static void decrThreadsCount();
+    static int getThreadsCount() { return ThreadsCount; }
 
-    static void isActive();
+    static void setActiveAndNotify();
     static void notActive();
     static int getActiveThreads() { return ThreadsActive; }
 
@@ -32,6 +32,6 @@ class ThreadsMan {
      * invokes other functions
      * */
     static void ForeRunner(ServerSockets ServSockets,
-                              std::function<void(const int)> ShellCallback,
-                              std::function<void(const int)> FileCallback);
+                           std::function<void(const int)> ShellCallback,
+                           std::function<void(const int)> FileCallback);
 };
