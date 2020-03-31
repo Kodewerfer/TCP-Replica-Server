@@ -21,6 +21,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
         const int iFiPort{FromOpts.fi};
         ServSockets = InitServer(iShPort, iFiPort);
         PrintMessage(iShPort, iFiPort);
+        // store a reference.
+        ServerUtils::setSocketsRef(ServSockets);
     } catch (char const *msg) {
         ServerUtils::buoy(msg);
     }
@@ -100,8 +102,9 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
         std::thread Worker(ThreadsMan::ForeRunner, ServSockets, ShellCallback,
                            FileCallback);
 
-        ThreadsMan::ThreadStash.push_back(move(Worker));
-        // Worker.detach();
+        // ThreadsMan::ThreadStash.push_back(move(Worker));
+
+        Worker.detach();
         ThreadsMan::ThreadCreated();
 
         i++;
@@ -120,8 +123,11 @@ void DoShellCallback(const int iServFD) {
     std::string WelcomeMessage = "Shell Server Connected.";
 
     // NEW - Shell client limit
-    bool bIsExceedLimt{!(ServerUtils::ShellServerLock.try_lock())};
-    if (bIsExceedLimt) {
+    // !! LOCKING !!
+    // !! LOCKING !!
+    std::unique_lock<std::mutex> ShellLock(ServerUtils::ShellServerLock,
+                                           std::try_to_lock);
+    if (!ShellLock.owns_lock()) {
         WelcomeMessage =
             "Shell Server has exceeded its limit, terminating session...";
     }
@@ -131,7 +137,7 @@ void DoShellCallback(const int iServFD) {
     send(iServFD, "\n", 1, 0);
 
     // Terminate the session if more than one user.
-    if (bIsExceedLimt) {
+    if (!ShellLock.owns_lock()) {
         close(iServFD);
         shutdown(iServFD, 1);
         ServerUtils::buoy("Shell client Blocked");
@@ -142,7 +148,8 @@ void DoShellCallback(const int iServFD) {
     ShellClient *NewClient = new ShellClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
-    while ((Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+    int n{0};
+    while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
         const std::string sRequest(req);
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
 
@@ -165,12 +172,12 @@ void DoShellCallback(const int iServFD) {
             ServerUtils::buoy(e);
         }
     }
-    ServerUtils::buoy("Shell connection closed by client.");
 
-    close(iServFD);
-    shutdown(iServFD, 1);
-    // Accepting new shell client.
-    ServerUtils::ShellServerLock.unlock();
+    if (n = -2) {
+        ServerUtils::buoy("Shell Connection closed by client.");
+    } else {
+        ServerUtils::buoy("Server Quited.");
+    }
 }
 
 void DoFileCallback(const int iServFD) {
@@ -185,7 +192,8 @@ void DoFileCallback(const int iServFD) {
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
-    while ((Lib::readline(iServFD, req, ALEN - 1)) != FLAG_NO_DATA) {
+    int n{0};
+    while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
         const std::string sRequest(req);
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
@@ -224,9 +232,11 @@ void DoFileCallback(const int iServFD) {
 
         NewRes->file(res, message);
     }
-    ServerUtils::buoy("File Connection closed by client.");
-    close(iServFD);
-    shutdown(iServFD, 1);
+    if (n = -2) {
+        ServerUtils::buoy("File Connection closed by client.");
+    } else {
+        ServerUtils::buoy("Server Quited.");
+    }
 }
 
 /**
@@ -324,7 +334,22 @@ void daemonize() {
 
 void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
-    return;
+    // set the flag
+    ThreadsMan::StartQuiting();
+    // close master sockets.
+    std::array<int, 2> Socks = ServerUtils::getSocketsRef();
+    for (auto i : Socks) {
+        // close(i);
+        shutdown(i, SHUT_RD);
+        close(i);
+    }
+
+    // Kill all on going connections.
+    ThreadsMan::closeAllSSocks();
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    // QUIT
+    _Exit(EXIT_SUCCESS);
 }
 
 void HandleSIGHUP(int sig) {

@@ -3,6 +3,12 @@
 bool ServerUtils::bRunningBackground{true};
 bool ServerUtils::bIsDebugging{false};
 std::mutex ServerUtils::ShellServerLock;
+ServerSockets ServerUtils::SocketReference;
+
+void ServerUtils::setSocketsRef(ServerSockets &ref) { SocketReference = ref; };
+std::array<int, 2> ServerUtils::getSocketsRef() {
+    return std::array<int, 2>{SocketReference.file, SocketReference.shell};
+}
 
 int ServerUtils::CreateSocket(const unsigned short port,
                               const unsigned long int ip_addr,
@@ -79,19 +85,6 @@ Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
     accpeted.accepted = ActiveFD;
     accpeted.newsocket = accept(ActiveFD, addr, addrlen);
     return accpeted;
-}
-
-int recv_nonblock(int sd, char *buf, size_t max, int timeout) {
-    struct pollfd pollrec;
-    pollrec.fd = sd;
-    pollrec.events = POLLIN;
-
-    int polled = poll(&pollrec, 1, timeout);
-
-    if (polled == 0) return FLAG_NO_DATA;
-    if (polled == -1) return -1;
-
-    return recv(sd, buf, max, 0);
 }
 
 void ServerUtils::buoy(std::string message) {

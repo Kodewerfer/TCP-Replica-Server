@@ -213,11 +213,16 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     return res;
 }
 
-// close all fd.
+// close all fd. clear references.
 FileClient::~FileClient() {
+    ServerUtils::rowdy("File Client Cleaning.");
     if (OpenedFiles.size() > 0) {
-        for (auto ele : OpenedFiles) {
-            close(ele);
+        for (auto fd : OpenedFiles) {
+            std::string FileName = FdToName[fd];
+            if (NameToFd[FileName] == fd) {
+                NameToFd[FileName] = -1;
+            }
+            close(fd);
         }
     }
 }

@@ -12,6 +12,12 @@
 
 class ThreadsMan {
    private:
+    // save slave socket reference for the quiting process.
+    static std::vector<int> SSocksRef;
+    static std::mutex SSocksLock;
+
+    static std::atomic<bool> ServerQuitingFlag;
+
     static std::atomic<int> ThreadsCount;
     static std::atomic<int> ActiveThreads;
     static std::atomic<int> QuitingThreads;
@@ -20,8 +26,15 @@ class ThreadsMan {
 
    public:
     static int T_incr;
+
     static std::vector<std::thread> ThreadStash;
     static std::condition_variable NeedMoreThreads;
+
+    static void addSScokRef(int);
+    static void removeSScokRef(int);
+    static void closeAllSSocks();
+
+    static void StartQuiting() { ServerQuitingFlag = true; };
 
     static void ThreadCreated();
     static int getThreadsCount() { return ThreadsCount; }

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <fcntl.h>
-#include <sys/types.h>
+#include <sys/poll.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include <cstring>
@@ -15,4 +16,5 @@ namespace Lib {
 int readline(int, char *, size_t);
 int readline(int, std::string &, size_t);
 std::vector<char *> Tokenize(const std::string &str);
-};  // namespace lib
+static int recv_nonblock(int sd, char *buf, size_t max, int timeout);
+};  // namespace Lib

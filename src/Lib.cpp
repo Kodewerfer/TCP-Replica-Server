@@ -37,6 +37,19 @@ int readline(int fd, std::string &sLine, size_t max) {
     return i;
 }
 
+int recv_nonblock(int sd, char *buf, size_t max, int timeout) {
+    pollfd pollrec;
+    pollrec.fd = sd;
+    pollrec.events = POLLIN;
+
+    int polled = poll(&pollrec, 1, timeout);
+
+    if (polled == 0) return -2;
+    if (polled == -1) return -1;
+
+    return recv(sd, buf, max, 0);
+}
+
 std::vector<char *> Tokenize(const std::string &sUserInput) {
     std::istringstream StreamStr(sUserInput);
     std::vector<char *> VWords;

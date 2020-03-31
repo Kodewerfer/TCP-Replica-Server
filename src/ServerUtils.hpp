@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -17,8 +18,6 @@
 #include <sstream>
 #include <string>
 #include <thread>
-
-const int FLAG_NO_DATA{-2};
 
 struct ServerSockets {
     int shell;
@@ -32,14 +31,18 @@ struct Accepted {
 
 class ServerUtils {
    private:
+    static ServerSockets SocketReference;
+
    public:
     static bool bRunningBackground;
     static bool bIsDebugging;
     static std::mutex ShellServerLock;
+
     /**
-     *  set the flag for background running
-     * */
-    bool setRunningBackground(bool flag) { return bRunningBackground = flag; };
+     * Store a reference to opened socket for signal handling
+     *  */
+    static void setSocketsRef(ServerSockets &ref);
+    static std::array<int, 2> getSocketsRef();
 
     /**
      * Helper function, contains the common code for passivesocket and
@@ -65,11 +68,6 @@ class ServerUtils {
      * */
     static Accepted PollEither(int *fds, int count, sockaddr *addr,
                                socklen_t *addrlen, int TimeOut = -1);
-
-    /**
-     * Non-block reading of the data.
-     * */
-    int recv_nonblock(int sd, char *buf, size_t max, int timeout);
 
     /**
      *  display or logging.

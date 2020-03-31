@@ -1,7 +1,7 @@
 ALL: build tidy
 
 run: ALL
-		./shfd -d -D
+		./shfd -d -D -t 1 -T 1
 
 test:
 		# PLACEHOLDER

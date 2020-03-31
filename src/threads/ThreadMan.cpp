@@ -1,12 +1,14 @@
 #include "ThreadsMan.hpp"
 
+std::vector<int> ThreadsMan::SSocksRef;
+std::mutex ThreadsMan::SSocksLock;
+
+std::atomic<bool> ThreadsMan::ServerQuitingFlag{false};
+
 std::atomic<int> ThreadsMan::ThreadsCount{0};
 std::atomic<int> ThreadsMan::ActiveThreads{0};
 std::atomic<int> ThreadsMan::QuitingThreads{0};
 // std::mutex ThreadsMan::QuitingLock;
-
-int ThreadsMan::T_incr;
-
 bool ThreadsMan::tryQuitting() {
     // std::lock_guard<std::mutex> QuittingGuard(QuitingLock);
     if (QuitingThreads + 1 > T_incr) {
@@ -17,8 +19,31 @@ bool ThreadsMan::tryQuitting() {
         ThreadsCount -= QuitingThreads;
         QuitingThreads = 0;
     }
-
     return true;
+}
+
+int ThreadsMan::T_incr;
+
+void ThreadsMan::addSScokRef(int fd) {
+    std::lock_guard<std::mutex> AddGuard(SSocksLock);
+    SSocksRef.push_back(fd);
+}
+
+void ThreadsMan::removeSScokRef(int fd) {
+    std::lock_guard<std::mutex> RemoveGuard(SSocksLock);
+    for (int i = 0; i < SSocksRef.size(); i++) {
+        if (SSocksRef.at(i) == fd) {
+            SSocksRef.erase(SSocksRef.begin() + i);
+            break;
+        }
+    }
+}
+void ThreadsMan::closeAllSSocks() {
+    for (auto fd : SSocksRef) {
+        ServerUtils::rowdy("Closing " + std::to_string(fd));
+        shutdown(fd, SHUT_RD);
+        close(fd);
+    }
 }
 
 std::vector<std::thread> ThreadsMan::ThreadStash;
@@ -75,6 +100,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         int iSockets[2]{ServSockets.shell, ServSockets.file};
         std::function<void(const int)> TheCallback_PTR{nullptr};
         Accepted AcceptedSocket;
+        //
         const int POLL_TIME_OUT{6000};
 
         /**
@@ -85,7 +111,8 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
                 (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
                 (socklen_t *)&iClientAddrLen,
                 POLL_TIME_OUT);  // timeout set to 1min.
-
+            // save a reference.
+            addSScokRef(AcceptedSocket.newsocket);
             // Handle the request, invoke callback.
             if (AcceptedSocket.accepted != -1 &&
                 AcceptedSocket.newsocket != -1) {
@@ -103,6 +130,10 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
                 }
 
                 TheCallback_PTR(AcceptedSocket.newsocket);
+                // connection closed
+                removeSScokRef(AcceptedSocket.newsocket);
+                close(AcceptedSocket.newsocket);
+                shutdown(AcceptedSocket.newsocket, 1);
                 // active stauts
                 ThreadsMan::notActive();
             }
@@ -111,6 +142,11 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
 
             // For testing
             // ServerUtils::buoy(std::string(e));
+        }
+
+        // Quit immediately if quiting.
+        if (ServerQuitingFlag) {
+            break;
         }
 
         // No data or time out proceed to clean up
@@ -123,9 +159,8 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         const int Tincr{T_incr};
 
         if (N > Tincr && N_Active < (N - Tincr - 1)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
             if (tryQuitting()) {
-                ServerUtils::rowdy("Cleaning thread...");
+                ServerUtils::rowdy("Thread Quiting..");
                 break;
             }
         }
