@@ -10,8 +10,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
     // For debugging output.
     ThreadsMan::T_incr = FromOpts.tincr;
 
+    // daemonize
     if (ServerUtils::bRunningBackground) {
-        // daemon
         daemonize();
     }
 
@@ -24,8 +24,16 @@ int main(int arg, char *argv_main[], char *envp[]) {
     } catch (char const *msg) {
         ServerUtils::buoy(msg);
     }
-    if (signal(SIGINT, HandleSIGs) == SIG_ERR)
-        ServerUtils::buoy("can't catch SIGINT");
+
+    /**
+     * Dynamic reconfiguration
+     * */
+
+    if (signal(SIGQUIT, HandleSIGQUIT) == SIG_ERR)
+        ServerUtils::buoy("Can't catch SIGQUIT");
+    if (signal(SIGHUP, HandleSIGHUP) == SIG_ERR)
+        ServerUtils::buoy("Can't catch SIGHUP");
+
     /**
      *   Seperated Accepting and Creating logics.
      *   Main thread handle creation while threads themselves handle accepting
@@ -34,8 +42,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
     std::mutex LoopLock;
     std::unique_lock<std::mutex> Locker(LoopLock);
     const int MaxThread = FromOpts.tincr + FromOpts.tmax;
+    // wait on condition varible notification.
     while (true) {
-        // wait on condition varible notification.
         ThreadsMan::NeedMoreThreads.wait(Locker, [MaxThread]() {
             return (ThreadsMan::getThreadsCount() ==
                         ThreadsMan::getActiveThreads() &&
@@ -314,7 +322,12 @@ void daemonize() {
     return;
 }
 
-void HandleSIGs(int sig) {
-    ServerUtils::rowdy("SIGQUIT ReCeived");
+void HandleSIGQUIT(int sig) {
+    ServerUtils::rowdy("SIGQUIT ");
     return;
 }
+
+void HandleSIGHUP(int sig) {
+    ServerUtils::rowdy("SIGHUP ");
+    return;
+};

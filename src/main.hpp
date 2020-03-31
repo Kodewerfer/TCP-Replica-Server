@@ -25,17 +25,33 @@ struct OptParsed {
     const int tmax;
 };
 
+/**
+ *  Main logic
+ * */
+
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
 void CreateThreads(ServerSockets &ServSockets, OptParsed &,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback);
 
+/**
+ *  Callback for Shell or File server
+ * */
+
 void DoShellCallback(const int);
 void DoFileCallback(const int);
+
+/**
+ *  Misc
+ * */
 
 OptParsed ParsOpt(int, char **, const char *);
 void daemonize();
 
-// Signal handles
-void HandleSIGs(int);
+/**
+ * Dynamic reconfiguration
+ * */
+
+void HandleSIGQUIT(int sig);
+void HandleSIGHUP(int sig);
