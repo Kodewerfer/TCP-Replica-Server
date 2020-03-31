@@ -19,15 +19,15 @@
 #include "threads/ThreadsMan.hpp"
 
 struct OptParsed {
-    int sh;
-    int fi;
-    int tincr;
-    int tmax;
+    const int sh;
+    const int fi;
+    const int tincr;
+    const int tmax;
 };
 
 ServerSockets InitServer(int, int);
 void PrintMessage(const int iSh, const int iFi);
-void CreateThreads(ServerSockets &ServSockets, OptParsed,
+void CreateThreads(ServerSockets &ServSockets, OptParsed &,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback);
 

@@ -153,9 +153,9 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     std::string FileName = FdToName[fd];
     AccessCtl &Control = FileAccess[FileName];
 
+    // !! LOCKING !!
     std::unique_lock<std::mutex> WritingLock(Control.writeLock,
                                              std::try_to_lock);
-    // !! LOCKING !!
     if (Control.reading > 0 || !WritingLock.owns_lock()) {
         //  abort.
         throw std::string("ER-F-ACEDI");
@@ -174,8 +174,6 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends seeking.");
 
     Control.writing -= 1;
-    // --- Critial region
-    Control.writeLock.unlock();
 
     if (res <= 0) {
         // failed

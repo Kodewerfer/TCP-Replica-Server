@@ -6,10 +6,10 @@
 #define THREAD_MAX_DEFAULT 4;
 
 int main(int arg, char *argv_main[], char *envp[]) {
-    if (signal(SIGINT, HandleSIGs) == SIG_ERR)
-        ServerUtils::buoy("can't catch SIGINT");
-
     OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:dD");
+    // For debugging output.
+    ThreadsMan::T_incr = FromOpts.tincr;
+
     if (ServerUtils::bRunningBackground) {
         // daemon
         daemonize();
@@ -24,7 +24,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
     } catch (char const *msg) {
         ServerUtils::buoy(msg);
     }
-
+    if (signal(SIGINT, HandleSIGs) == SIG_ERR)
+        ServerUtils::buoy("can't catch SIGINT");
     /**
      *   Seperated Accepting and Creating logics.
      *   Main thread handle creation while threads themselves handle accepting
@@ -32,14 +33,19 @@ int main(int arg, char *argv_main[], char *envp[]) {
      *  */
     std::mutex LoopLock;
     std::unique_lock<std::mutex> Locker(LoopLock);
+    const int MaxThread = FromOpts.tincr + FromOpts.tmax;
     while (true) {
         // wait on condition varible notification.
-        ThreadsMan::condCreateMore.wait(Locker, []() {
+        ThreadsMan::NeedMoreThreads.wait(Locker, [MaxThread]() {
             return (ThreadsMan::getThreadsCount() ==
-                    ThreadsMan::getActiveThreads());
+                        ThreadsMan::getActiveThreads() &&
+                    ThreadsMan::getThreadsCount() < MaxThread);
         });
+
         ServerUtils::rowdy("Main thread awaken, creating threads...");
+
         CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
+
         ServerUtils::rowdy("Threads Count now : " +
                            std::to_string(ThreadsMan::getThreadsCount()));
         ServerUtils::rowdy("Threads Active now : " +
@@ -73,7 +79,7 @@ void PrintMessage(const int iSh, const int iFi) {
                       std::to_string(iFi));
 }
 
-void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
+void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback) {
     const int MaxThread = FromOpts.tincr + FromOpts.tmax;
@@ -88,7 +94,7 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed FromOpts,
 
         ThreadsMan::ThreadStash.push_back(move(Worker));
         // Worker.detach();
-        ThreadsMan::incrThreadsCount();
+        ThreadsMan::ThreadCreated();
 
         i++;
     }
@@ -308,4 +314,7 @@ void daemonize() {
     return;
 }
 
-void HandleSIGs(int sig) { std::cout << "SIGQUIT"; }
+void HandleSIGs(int sig) {
+    ServerUtils::rowdy("SIGQUIT ReCeived");
+    return;
+}

@@ -13,19 +13,22 @@
 class ThreadsMan {
    private:
     static std::atomic<int> ThreadsCount;
-    static std::atomic<int> ThreadsActive;
+    static std::atomic<int> ActiveThreads;
+    static std::atomic<int> QuitingThreads;
+    // static std::mutex QuitingLock;
+    static bool tryQuitting();
 
    public:
+    static int T_incr;
     static std::vector<std::thread> ThreadStash;
-    static std::condition_variable condCreateMore;
+    static std::condition_variable NeedMoreThreads;
 
-    static void incrThreadsCount();
-    static void decrThreadsCount();
+    static void ThreadCreated();
     static int getThreadsCount() { return ThreadsCount; }
 
     static void setActiveAndNotify();
     static void notActive();
-    static int getActiveThreads() { return ThreadsActive; }
+    static int getActiveThreads() { return ActiveThreads; }
 
     /**
      * Thread initialize with this function,
