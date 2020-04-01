@@ -177,6 +177,8 @@ void DoShellCallback(const int iServFD) {
     } else {
         ServerUtils::buoy("Server Quited.");
     }
+    delete NewClient;
+    delete NewRes;
 }
 
 void DoFileCallback(const int iServFD) {
@@ -236,6 +238,9 @@ void DoFileCallback(const int iServFD) {
     } else {
         ServerUtils::buoy("Server Quited.");
     }
+
+    delete NewClient;
+    delete NewRes;
 }
 
 /**

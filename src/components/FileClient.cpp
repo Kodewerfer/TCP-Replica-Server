@@ -196,7 +196,12 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
-
+    // remove the reference first while still holding the fd.
+    std::string FileName = FdToName[fd];
+    if (NameToFd[FileName] == fd) {
+        NameToFd[FileName] = -1;
+    }
+    // close fd, release the resource
     close(fd);
     int index{0};
     for (auto ele : OpenedFiles) {
@@ -218,6 +223,7 @@ FileClient::~FileClient() {
     ServerUtils::rowdy("File Client Cleaning.");
     if (OpenedFiles.size() > 0) {
         for (auto fd : OpenedFiles) {
+            // remove the reference first while still holding the fd.
             std::string FileName = FdToName[fd];
             if (NameToFd[FileName] == fd) {
                 NameToFd[FileName] = -1;

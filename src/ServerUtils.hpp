@@ -78,11 +78,12 @@ class ServerUtils {
     static Accepted PollEither(int *fds, int count, sockaddr *addr,
                                socklen_t *addrlen, int TimeOut = -1);
 
+    // get the thread's id, turn it to string.
+    static std::string GetTID();
+
     /**
      *  display or logging.
      * */
     static void buoy(std::string message);
     static void rowdy(std::string message);
-
-    static std::string GetTID();
 };

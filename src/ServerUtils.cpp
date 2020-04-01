@@ -97,6 +97,18 @@ Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
     return accpeted;
 }
 
+std::string ServerUtils::GetTID() {
+    auto myid = std::this_thread::get_id();
+    std::stringstream ss;
+    ss << myid;
+    std::string mystring = ss.str();
+
+    return mystring;
+}
+
+/*
+    FIXME:These logging methods are garbage.
+ */
 void ServerUtils::buoy(std::string message) {
     std::time_t result = std::time(nullptr);
 
@@ -134,13 +146,4 @@ void ServerUtils::rowdy(std::string message) {
         std::cout.flush();
         std::cout << "DEBUG -- " << message << "\n";
     }
-}
-
-std::string ServerUtils::GetTID() {
-    auto myid = std::this_thread::get_id();
-    std::stringstream ss;
-    ss << myid;
-    std::string mystring = ss.str();
-
-    return mystring;
 }
