@@ -1,9 +1,19 @@
 #include "ServerUtils.hpp"
 
+std::atomic<bool> ServerUtils::bSIGHUPReceived{false};
 bool ServerUtils::bRunningBackground{true};
 bool ServerUtils::bIsDebugging{false};
 std::mutex ServerUtils::ShellServerLock;
 ServerSockets ServerUtils::SocketReference;
+
+bool ServerUtils::testSighup() {
+    if (bSIGHUPReceived) {
+        bSIGHUPReceived = false;
+        return true;
+    }
+
+    return false;
+}
 
 void ServerUtils::setSocketsRef(ServerSockets &ref) { SocketReference = ref; };
 std::array<int, 2> ServerUtils::getSocketsRef() {

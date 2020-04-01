@@ -43,13 +43,18 @@ int main(int arg, char *argv_main[], char *envp[]) {
      *  */
     std::mutex LoopLock;
     std::unique_lock<std::mutex> Locker(LoopLock);
-    const int MaxThread = FromOpts.tincr + FromOpts.tmax;
     // wait on condition varible notification.
     while (true) {
-        ThreadsMan::NeedMoreThreads.wait(Locker, [MaxThread]() {
-            return (ThreadsMan::getThreadsCount() ==
-                        ThreadsMan::getActiveThreads() &&
-                    ThreadsMan::getThreadsCount() < MaxThread);
+        ThreadsMan::NeedMoreThreads.wait(Locker, [FromOpts]() {
+            // lambda "guard" for the condition.
+            const int MaxThread = FromOpts.tincr + FromOpts.tmax;
+            bool bAllThreadsActive =
+                ThreadsMan::getThreadsCount() == ThreadsMan::getActiveThreads();
+            bool bLimitNotReached = ThreadsMan::getThreadsCount() < MaxThread;
+
+            bool bSigHup = ServerUtils::testSighup();
+
+            return (bSigHup || (bAllThreadsActive && bLimitNotReached));
         });
 
         ServerUtils::rowdy("Main thread awaken, creating threads...");
@@ -92,18 +97,12 @@ void PrintMessage(const int iSh, const int iFi) {
 void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
                    std::function<void(const int)> ShellCallback,
                    std::function<void(const int)> FileCallback) {
-    const int MaxThread = FromOpts.tincr + FromOpts.tmax;
     int i = 1;
     while (i <= FromOpts.tincr) {
-        if (ThreadsMan::getThreadsCount() == MaxThread) {
-            ServerUtils::rowdy("Max Thread Reached, Abort.");
-            break;
-        }
         std::thread Worker(ThreadsMan::ForeRunner, ServSockets, ShellCallback,
                            FileCallback);
 
         // ThreadsMan::ThreadStash.push_back(move(Worker));
-
         Worker.detach();
         ThreadsMan::ThreadCreated();
 
@@ -354,5 +353,7 @@ void HandleSIGQUIT(int sig) {
 
 void HandleSIGHUP(int sig) {
     ServerUtils::rowdy("SIGHUP ");
+    ServerUtils::SigHupReconfig();
+    ThreadsMan::NeedMoreThreads.notify_one();
     return;
 };

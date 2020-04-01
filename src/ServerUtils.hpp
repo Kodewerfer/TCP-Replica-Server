@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <atomic>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -32,11 +33,19 @@ struct Accepted {
 class ServerUtils {
    private:
     static ServerSockets SocketReference;
+    static std::atomic<bool> bSIGHUPReceived;
 
    public:
     static bool bRunningBackground;
     static bool bIsDebugging;
     static std::mutex ShellServerLock;
+
+    /**
+     * Dynamci reconfig
+     *   */
+    static void SigHupReconfig() { bSIGHUPReceived = true; };
+    // test and "cosume" the flag.
+    static bool testSighup();
 
     /**
      * Store a reference to opened socket for signal handling

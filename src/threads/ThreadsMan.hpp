@@ -16,7 +16,7 @@ class ThreadsMan {
     static std::vector<int> SSocksRef;
     static std::mutex SSocksLock;
 
-    static std::atomic<bool> ServerQuitingFlag;
+    static std::atomic<bool> bIsServerQuiting;
 
     static std::atomic<int> ThreadsCount;
     static std::atomic<int> ActiveThreads;
@@ -34,7 +34,7 @@ class ThreadsMan {
     static void removeSScokRef(int);
     static void closeAllSSocks();
 
-    static void StartQuiting() { ServerQuitingFlag = true; };
+    static void StartQuiting() { bIsServerQuiting = true; };
 
     static void ThreadCreated();
     static int getThreadsCount() { return ThreadsCount; }

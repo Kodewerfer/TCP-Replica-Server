@@ -3,7 +3,7 @@
 std::vector<int> ThreadsMan::SSocksRef;
 std::mutex ThreadsMan::SSocksLock;
 
-std::atomic<bool> ThreadsMan::ServerQuitingFlag{false};
+std::atomic<bool> ThreadsMan::bIsServerQuiting{false};
 
 std::atomic<int> ThreadsMan::ThreadsCount{0};
 std::atomic<int> ThreadsMan::ActiveThreads{0};
@@ -145,7 +145,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         }
 
         // Quit immediately if quiting.
-        if (ServerQuitingFlag) {
+        if (bIsServerQuiting) {
             break;
         }
 
