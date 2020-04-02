@@ -199,6 +199,14 @@ void DoFileCallback(const int iServFD) {
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
 
+        // Test if it is a sync request.
+        bool bIsSyncRequest{false};
+        if (strcmp(RequestTokenized.at(0), "SYNC")) {
+            bIsSyncRequest = true;
+            RequestTokenized.erase(RequestTokenized.begin());
+        }
+
+        // Proceed as usual
         int res{-5};
         std::string message{" "};
         try {
@@ -229,6 +237,10 @@ void DoFileCallback(const int iServFD) {
         } catch (const std::string &e) {
             NewRes->fail(e);
             continue;
+        }
+
+        // origin of the sync requests.
+        if (!bIsSyncRequest) {
         }
 
         NewRes->file(res, message);
@@ -338,8 +350,7 @@ void daemonize() {
 
 void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
-    // set the flag
-    ThreadsMan::StartQuiting();
+
     // close master sockets.
     std::array<int, 2> Socks = ServerUtils::getSocketsRef();
     for (auto i : Socks) {
@@ -347,6 +358,8 @@ void HandleSIGQUIT(int sig) {
         shutdown(i, SHUT_RD);
         close(i);
     }
+    // set the flag
+    ThreadsMan::StartQuiting();
 
     // Kill all on going connections.
     ThreadsMan::closeAllSSocks();
@@ -357,8 +370,22 @@ void HandleSIGQUIT(int sig) {
 }
 
 void HandleSIGHUP(int sig) {
-    ServerUtils::rowdy("SIGHUP ");
+    ServerUtils::rowdy("SIGHUP");
+
+    // set the flag
+    ThreadsMan::StartQuiting();
+
+    // Kill all on going connections.
+    ThreadsMan::closeAllSSocks();
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    ThreadsMan::RestCounter();
+    ThreadsMan::StopQuiting();
+    // std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    // create threads
     ServerUtils::SigHupReconfig();
     ThreadsMan::NeedMoreThreads.notify_one();
+    ServerUtils::rowdy("Server Restarted");
     return;
 };

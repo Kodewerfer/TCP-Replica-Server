@@ -34,7 +34,12 @@ class ThreadsMan {
     static void removeSScokRef(int);
     static void closeAllSSocks();
 
-    static void StartQuiting() { bIsServerQuiting = true; };
+    static void StartQuiting() { bIsServerQuiting = true; }
+    static void StopQuiting() { bIsServerQuiting = false; }
+    static void RestCounter() {
+        ThreadsCount = 0;
+        ActiveThreads = 0;
+    };
 
     static void ThreadCreated();
     static int getThreadsCount() { return ThreadsCount; }
@@ -42,7 +47,6 @@ class ThreadsMan {
     static void setActiveAndNotify();
     static void notActive();
     static int getActiveThreads() { return ActiveThreads; }
-
     /**
      * Thread initialize with this function,
      * invokes other functions

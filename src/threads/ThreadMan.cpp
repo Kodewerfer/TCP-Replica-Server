@@ -165,6 +165,4 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
             }
         }
     }
-
-    // ThreadsMan::decrThreadsCount();
 }
