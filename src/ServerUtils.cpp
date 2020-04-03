@@ -1,12 +1,15 @@
 #include "ServerUtils.hpp"
 
+ServerSockets ServerUtils::SocketReference;
 std::atomic<bool> ServerUtils::bSIGHUPReceived{false};
+
 bool ServerUtils::bRunningBackground{true};
 bool ServerUtils::bIsDebugging{false};
 std::mutex ServerUtils::ShellServerLock;
-ServerSockets ServerUtils::SocketReference;
 
-bool ServerUtils::testSighup() {
+std::vector<sockaddr_in> ServerUtils::PeersAddr;
+
+bool ServerUtils::trySighupFlag() {
     if (bSIGHUPReceived) {
         bSIGHUPReceived = false;
         return true;

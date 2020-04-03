@@ -6,7 +6,7 @@
 #define THREAD_MAX_DEFAULT 4;
 
 int main(int arg, char *argv_main[], char *envp[]) {
-    OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:dD");
+    OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:p:dD");
     // For debugging output.
     ThreadsMan::T_incr = FromOpts.tincr;
 
@@ -30,7 +30,7 @@ int main(int arg, char *argv_main[], char *envp[]) {
     /**
      * Dynamic reconfiguration
      * */
-
+    signal(SIGPIPE, SIG_IGN);
     if (signal(SIGQUIT, HandleSIGQUIT) == SIG_ERR)
         ServerUtils::buoy("Can't catch SIGQUIT");
     if (signal(SIGHUP, HandleSIGHUP) == SIG_ERR)
@@ -52,7 +52,7 @@ int main(int arg, char *argv_main[], char *envp[]) {
                 ThreadsMan::getThreadsCount() == ThreadsMan::getActiveThreads();
             bool bLimitNotReached = ThreadsMan::getThreadsCount() < MaxThread;
 
-            bool bSigHup = ServerUtils::testSighup();
+            bool bSigHup = ServerUtils::trySighupFlag();
 
             return (bSigHup || (bAllThreadsActive && bLimitNotReached));
         });
@@ -92,6 +92,11 @@ void PrintMessage(const int iSh, const int iFi) {
                       std::to_string(iSh));
     ServerUtils::buoy("File Server is listening on port. " +
                       std::to_string(iFi));
+
+    if (ServerUtils::PeersAddr.size() > 0) {
+        ServerUtils::buoy(std::to_string(ServerUtils::PeersAddr.size()) +
+                          " Peers found, running in Replica mode.");
+    }
 }
 
 void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
@@ -170,13 +175,14 @@ void DoShellCallback(const int iServFD) {
             NewRes->fail(e);
             ServerUtils::buoy(e);
         }
-    }
+    }  // core client loop ends
 
-    if (n = -2) {
+    if (n == -2) {
         ServerUtils::buoy("Shell Connection closed by client.");
     } else {
-        ServerUtils::buoy("Server Quited.");
+        ServerUtils::buoy("Server Error.");
     }
+
     delete NewClient;
     delete NewRes;
 }
@@ -193,26 +199,33 @@ void DoFileCallback(const int iServFD) {
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
+    // Test if it is a sync request.
+    const bool bOriginOfSyncs{ServerUtils::PeersAddr.size() > 0};
+
     int n{0};
     while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
         const std::string sRequest(req);
+
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
-
-        // Test if it is a sync request.
-        bool bIsSyncRequest{false};
-        if (strcmp(RequestTokenized.at(0), "SYNC")) {
-            bIsSyncRequest = true;
-            RequestTokenized.erase(RequestTokenized.begin());
-        }
 
         // Proceed as usual
         int res{-5};
         std::string message{" "};
+        // File Client
+        std::function<bool()> SyncCallback;
         try {
+            /**
+             * Normal Operations
+             * */
+
             // FOPEN
             if (strcmp(TheCommand, "FOPEN") == 0) {
                 int usedFd{-1};
+                if (bOriginOfSyncs) {
+                    // handle the sync requests.
+                    SyncCallback = HandleSync(sRequest, "FOPEN");
+                }
                 res = NewClient->FOPEN(RequestTokenized, usedFd);
                 if (usedFd > 0) {
                     NewRes->fileFdInUse(usedFd);
@@ -228,31 +241,114 @@ void DoFileCallback(const int iServFD) {
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
+                if (bOriginOfSyncs) {
+                    // handle the sync requests.
+                    SyncCallback = HandleSync(sRequest, "FWRITE");
+                }
                 res = NewClient->FWRITE(RequestTokenized);
+                // Send
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
                 res = NewClient->FCLOSE(RequestTokenized);
             }
+
+            /**
+             * Sync Operations
+             * */
+            if (strcmp(TheCommand, "SYNCWRITE") == 0) {
+            }
+            if (strcmp(TheCommand, "SYNCREAD") == 0) {
+            }
+
+            // Response
+            // origin of the sync requests.
+            if (bOriginOfSyncs && SyncCallback != nullptr) {
+                if (SyncCallback()) {
+                    NewRes->file(res, message);
+                } else {
+                    NewRes->fail("ER-SYNC");
+                }
+            } else {
+                NewRes->file(res, message);
+            }
         } catch (const std::string &e) {
+            // Failed.
             NewRes->fail(e);
             continue;
         }
+    }  // core client loop ends
 
-        // origin of the sync requests.
-        if (!bIsSyncRequest) {
-        }
-
-        NewRes->file(res, message);
-    }
-    if (n = -2) {
+    if (n == -2) {
         ServerUtils::buoy("File Connection closed by client.");
     } else {
-        ServerUtils::buoy("Server Quited.");
+        ServerUtils::buoy("Server Error.");
     }
 
     delete NewClient;
     delete NewRes;
+}
+
+std::function<bool()> HandleSync(const std::string &request,
+                                 const std::string ReqType) {
+    typedef std::future<std::string> PeerFuture;
+
+    std::vector<PeerFuture> PSTash;
+    std::vector<std::string> ResStash;
+
+    // Sync With Peers
+    for (auto &serv_addr : ServerUtils::PeersAddr) {
+        PeerFuture GetFromPeer = std::async([&]() {
+            int sock{-1};
+            char buffer[256]{0};
+
+            // create socket to peer
+            if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+                return std::string("ER-SYNC-SOC");
+            }
+            // make connection
+            if (connect(sock, (struct sockaddr *)&serv_addr,
+                        sizeof(serv_addr)) < 0) {
+                return std::string("ER-SYNC-CONN");
+            }
+
+            // send to the peer
+            send(sock, request.c_str(), request.size(), 0);
+
+            // Poll response
+            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 1000};
+            Lib::recv_nonblock(sock, buffer, 256, POLL_TIME_OUT);
+
+            // Close connection
+            shutdown(sock, SHUT_WR);
+            close(sock);
+
+            return std::string(buffer);
+        });
+
+        PSTash.push_back(std::move(GetFromPeer));
+    }
+    // Get results all in one.
+    for (int i = 0; i < PSTash.size(); i++) {
+        std::string res = PSTash.at(i).get();
+
+        // Filter out errors
+        if (res.substr(0, 3) == "ER-") {
+            throw res;
+        }
+
+        ResStash.push_back(res);
+    }
+
+    if (ReqType == "FWRITE" || ReqType == "FOPEN") {
+        return [ResStash]() { return true; };
+    }
+
+    if (ReqType == "FREAD") {
+        return [ResStash]() { return true; };
+    }
+
+    throw "ER-SYNC";
 }
 
 /**
@@ -295,6 +391,47 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
                 // t max
                 int temp = atoi(optarg);
                 if (temp > 0) iThreadMax = temp;
+
+                break;
+            }
+            case 'p': {
+                // peers
+                std::string opts(optarg);
+                std::vector<char *> tokenized = Lib::Tokenize(opts);
+
+                for (auto ele : tokenized) {
+                    sockaddr_in serv_addr;
+                    serv_addr.sin_family = AF_INET;
+
+                    std::istringstream ss(ele);
+                    std::string tmp{};
+
+                    int i{0};    // 0 = host; 1 = port
+                    int err{0};  // error building the server addr.
+                    while (std::getline(ss, tmp, ':')) {
+                        if (i == 0) {
+                            // convert the address to binary
+                            if (inet_pton(AF_INET, tmp.c_str(),
+                                          &serv_addr.sin_addr) <= 0) {
+                                // converting error
+                                ++err;
+                            }
+                        } else {
+                            int PortNum = atoi(tmp.c_str());
+                            if (PortNum <= 0) {
+                                // converting error
+                                ++err;
+                                continue;
+                            }
+                            serv_addr.sin_port = htons(PortNum);
+                        }
+                        ++i;
+                    }
+
+                    if (err == 0) {
+                        ServerUtils::PeersAddr.push_back(serv_addr);
+                    }
+                }
 
                 break;
             }
@@ -359,10 +496,10 @@ void HandleSIGQUIT(int sig) {
         close(i);
     }
     // set the flag
-    ThreadsMan::StartQuiting();
+    ThreadsMan::StartServerQuiting();
 
     // Kill all on going connections.
-    ThreadsMan::closeAllSSocks();
+    ThreadsMan::CloseAllSSocks();
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     // QUIT
@@ -373,18 +510,18 @@ void HandleSIGHUP(int sig) {
     ServerUtils::rowdy("SIGHUP");
 
     // set the flag
-    ThreadsMan::StartQuiting();
+    ThreadsMan::StartServerQuiting();
 
     // Kill all on going connections.
-    ThreadsMan::closeAllSSocks();
+    ThreadsMan::CloseAllSSocks();
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    ThreadsMan::RestCounter();
-    ThreadsMan::StopQuiting();
+    ThreadsMan::RestCounters();
+    ThreadsMan::StopServerQuiting();
     // std::this_thread::sleep_for(std::chrono::milliseconds(300));
     // create threads
-    ServerUtils::SigHupReconfig();
+    ServerUtils::setSigHupFlag();
     ThreadsMan::NeedMoreThreads.notify_one();
     ServerUtils::rowdy("Server Restarted");
     return;

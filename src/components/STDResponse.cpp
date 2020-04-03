@@ -5,10 +5,14 @@ STDResponse::STDResponse(int fd)
       ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
                    {"ER-F-OP", "Error Opening The File"},
                    {"ER-F-ACEDI", "File Access Control : Action Denied"},
-                   {"ER-F-FD", "File Already Opened"}}) {}
+                   {"ER-F-FD", "File Already Opened"},
+                   {"ER-SYNC", "Syncing Failed."},
+                   {"ER-SYNC-SOC", "Connection Socket Error"},
+                   {"ER-SYNC-CONN", "Connection To Peers Failed"}}) {}
 
 void STDResponse::sendPayload(std::string &Content) {
-    send(ClientFd, Content.c_str(), Content.size(), 0);
+    int n{0};
+    n = send(ClientFd, Content.c_str(), Content.size(), 0);
     send(ClientFd, "\n", 1, 0);
 }
 

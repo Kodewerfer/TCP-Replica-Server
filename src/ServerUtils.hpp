@@ -19,6 +19,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 struct ServerSockets {
     int shell;
@@ -40,12 +41,14 @@ class ServerUtils {
     static bool bIsDebugging;
     static std::mutex ShellServerLock;
 
+    static std::vector<sockaddr_in> PeersAddr;
+
     /**
      * Dynamci reconfig
      *   */
-    static void SigHupReconfig() { bSIGHUPReceived = true; };
+    static void setSigHupFlag() { bSIGHUPReceived = true; };
     // test and "cosume" the flag.
-    static bool testSighup();
+    static bool trySighupFlag();
 
     /**
      * Store a reference to opened socket for signal handling

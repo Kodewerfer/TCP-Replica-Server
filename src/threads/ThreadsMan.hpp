@@ -16,6 +16,7 @@ class ThreadsMan {
     static std::vector<int> SSocksRef;
     static std::mutex SSocksLock;
 
+    // Dynamic reconfig
     static std::atomic<bool> bIsServerQuiting;
 
     static std::atomic<int> ThreadsCount;
@@ -32,11 +33,11 @@ class ThreadsMan {
 
     static void addSScokRef(int);
     static void removeSScokRef(int);
-    static void closeAllSSocks();
+    static void CloseAllSSocks();
 
-    static void StartQuiting() { bIsServerQuiting = true; }
-    static void StopQuiting() { bIsServerQuiting = false; }
-    static void RestCounter() {
+    static void StartServerQuiting() { bIsServerQuiting = true; }
+    static void StopServerQuiting() { bIsServerQuiting = false; }
+    static void RestCounters() {
         ThreadsCount = 0;
         ActiveThreads = 0;
     };

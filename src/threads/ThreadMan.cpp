@@ -38,7 +38,7 @@ void ThreadsMan::removeSScokRef(int fd) {
         }
     }
 }
-void ThreadsMan::closeAllSSocks() {
+void ThreadsMan::CloseAllSSocks() {
     for (auto fd : SSocksRef) {
         ServerUtils::rowdy("Closing " + std::to_string(fd));
         shutdown(fd, SHUT_RD);
