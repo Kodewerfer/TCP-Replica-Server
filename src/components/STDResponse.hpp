@@ -10,7 +10,7 @@
 #include <map>
 #include <string>
 
-#include "FileErrCode.hpp"
+#include "FileClient.hpp"
 
 class STDResponse {
    private:
