@@ -209,7 +209,6 @@ void DoFileCallback(const int iServFD) {
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
 
-        // Proceed as usual
         int res{-5};
         std::string message{" "};
         // File Client
@@ -262,14 +261,15 @@ void DoFileCallback(const int iServFD) {
             }
 
             // Response
-            // origin of the sync requests.
             if (bOriginOfSyncs && SyncCallback != nullptr) {
+                // origin of the sync requests.
                 if (SyncCallback()) {
                     NewRes->file(res, message);
                 } else {
                     NewRes->fail("ER-SYNC");
                 }
             } else {
+                // Normal operations
                 NewRes->file(res, message);
             }
         } catch (const std::string &e) {
