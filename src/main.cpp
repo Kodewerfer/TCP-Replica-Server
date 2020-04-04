@@ -128,7 +128,6 @@ void DoShellCallback(const int iServFD) {
 
     // NEW - Shell client limit
     // !! LOCKING !!
-    // !! LOCKING !!
     std::unique_lock<std::mutex> ShellLock(ServerUtils::ShellServerLock,
                                            std::try_to_lock);
     if (!ShellLock.owns_lock()) {
@@ -177,11 +176,7 @@ void DoShellCallback(const int iServFD) {
         }
     }  // core client loop ends
 
-    if (n == -2) {
-        ServerUtils::buoy("Connection closed: Shell Client.");
-    } else {
-        ServerUtils::buoy("Connection closed: Server Error.");
-    }
+    ServerUtils::buoy("Connection closed: Shell Client.");
 
     delete NewClient;
     delete NewRes;
@@ -190,16 +185,11 @@ void DoShellCallback(const int iServFD) {
 void DoFileCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
-    // send welcome message
-    const char welcome[] = "File Server Connected.";
-    send(iServFD, "\n", 1, 0);
-    send(iServFD, welcome, strlen(welcome), 0);
-    send(iServFD, "\n", 1, 0);
 
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
-    // Test if it is a sync request.
+    // if the server is syncing with other.
     const bool bOriginOfSyncs{ServerUtils::PeersAddr.size() > 0};
 
     int n{0};
@@ -269,7 +259,7 @@ void DoFileCallback(const int iServFD) {
                 res = NewClient->SYNCWRITE(RequestTokenized);
             }
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
-                res = NewClient->SYNCREAD(RequestTokenized);
+                res = NewClient->SYNCREAD(RequestTokenized, message);
             }
 
             // Response
@@ -291,11 +281,7 @@ void DoFileCallback(const int iServFD) {
         }
     }  // core client loop ends
 
-    if (n == -2) {
-        ServerUtils::buoy("Connection closed: File Client.");
-    } else {
-        ServerUtils::buoy("Connection closed: Server Error.");
-    }
+    ServerUtils::buoy("Connection closed: Flie Client");
 
     delete NewClient;
     delete NewRes;
@@ -326,13 +312,13 @@ std::function<bool()> HandleSync(const std::string &request,
 
             // send to the peer
             send(sock, request.c_str(), request.size(), 0);
-
-            // Poll response
-            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 1000};
-            Lib::recv_nonblock(sock, buffer, 256, POLL_TIME_OUT);
-
             // Close connection
             shutdown(sock, SHUT_WR);
+
+            // Poll response
+            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 500};
+            Lib::recv_nonblock(sock, buffer, 256, POLL_TIME_OUT);
+
             close(sock);
 
             return std::string(buffer);
@@ -499,6 +485,7 @@ void daemonize() {
 
 void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
+    ServerUtils::buoy("Server Quiting... ");
 
     // close master sockets.
     std::array<int, 2> Socks = ServerUtils::getSocketsRef();
@@ -520,6 +507,7 @@ void HandleSIGQUIT(int sig) {
 
 void HandleSIGHUP(int sig) {
     ServerUtils::rowdy("SIGHUP");
+    ServerUtils::buoy("Server Restarting... ");
 
     // set the flag
     ThreadsMan::StartServerQuiting();

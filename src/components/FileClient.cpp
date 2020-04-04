@@ -237,7 +237,8 @@ int FileClient::SYNCWRITE(std::vector<char *> Request) {
 
     // write to the file the content
 }
-int FileClient::SYNCREAD(std::vector<char *> Request) {
+int FileClient::SYNCREAD(std::vector<char *> Request,
+                         std::string &outRedContent) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
@@ -252,8 +253,7 @@ int FileClient::SYNCREAD(std::vector<char *> Request) {
     NewRequest.push_back(Request.at(2));
 
     // read the data
-    // int OutTrash;
-    // return FREAD(NewRequest, OutTrash);
+    return FREAD(NewRequest, outRedContent);
 }
 
 std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
@@ -283,7 +283,7 @@ FileClient::~FileClient() {
             // remove the reference first while still holding the fd.
             std::string FileName = FdToName[fd];
             if (NameToFd[FileName] == fd) {
-                NameToFd[FileName] = -1;
+                NameToFd[FileName] = 0;
             }
             close(fd);
         }
