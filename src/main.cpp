@@ -178,9 +178,9 @@ void DoShellCallback(const int iServFD) {
     }  // core client loop ends
 
     if (n == -2) {
-        ServerUtils::buoy("Shell Connection closed by client.");
+        ServerUtils::buoy("Connection closed: Shell Client.");
     } else {
-        ServerUtils::buoy("Server Error.");
+        ServerUtils::buoy("Connection closed: Server Error.");
     }
 
     delete NewClient;
@@ -209,7 +209,7 @@ void DoFileCallback(const int iServFD) {
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
 
-        int res{-5};
+        int res{NO_VALID_COM};
         std::string message{" "};
         // File Client
         std::function<bool()> SyncCallback;
@@ -221,10 +221,6 @@ void DoFileCallback(const int iServFD) {
             // FOPEN
             if (strcmp(TheCommand, "FOPEN") == 0) {
                 int usedFd{-1};
-                if (bOriginOfSyncs) {
-                    // handle the sync requests.
-                    SyncCallback = HandleSync(sRequest, "FOPEN");
-                }
                 res = NewClient->FOPEN(RequestTokenized, usedFd);
                 if (usedFd > 0) {
                     NewRes->fileFdInUse(usedFd);
@@ -240,12 +236,16 @@ void DoFileCallback(const int iServFD) {
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
-                if (bOriginOfSyncs) {
-                    // handle the sync requests.
-                    SyncCallback = HandleSync(sRequest, "FWRITE");
-                }
+                // local request
                 res = NewClient->FWRITE(RequestTokenized);
-                // Send
+                // sync wouldn't run if local request reported error
+                if (bOriginOfSyncs && res >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient->SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest, "SYNCWRITE");
+                }
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
@@ -253,11 +253,13 @@ void DoFileCallback(const int iServFD) {
             }
 
             /**
-             * Sync Operations
+             * Receiving end of Sync Operations.
              * */
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
+                res = NewClient->SYNCWRITE(RequestTokenized);
             }
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
+                res = NewClient->SYNCREAD(RequestTokenized);
             }
 
             // Response
@@ -280,9 +282,9 @@ void DoFileCallback(const int iServFD) {
     }  // core client loop ends
 
     if (n == -2) {
-        ServerUtils::buoy("File Connection closed by client.");
+        ServerUtils::buoy("Connection closed: File Client.");
     } else {
-        ServerUtils::buoy("Server Error.");
+        ServerUtils::buoy("Connection closed: Server Error.");
     }
 
     delete NewClient;
@@ -334,17 +336,17 @@ std::function<bool()> HandleSync(const std::string &request,
 
         // Filter out errors
         if (res.substr(0, 3) == "ER-") {
-            throw res;
+            // throw res;
         }
 
         ResStash.push_back(res);
     }
 
-    if (ReqType == "FWRITE" || ReqType == "FOPEN") {
+    if (ReqType == "SYNCWRITE") {
         return [ResStash]() { return true; };
     }
 
-    if (ReqType == "FREAD") {
+    if (ReqType == "SYNCREAD") {
         return [ResStash]() { return true; };
     }
 

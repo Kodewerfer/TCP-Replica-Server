@@ -63,5 +63,9 @@ class FileClient {
     int FREAD(std::vector<char *> Request, std::string &outMessage);
     int FWRITE(std::vector<char *> Request);
     int FCLOSE(std::vector<char *> Request);
+    int SYNCWRITE(std::vector<char *> Request);
+    int SYNCREAD(std::vector<char *> Request);
+    // Helper functions
+    std::string SyncRequestBuilder(std::vector<char *> Request);
     ~FileClient();
 };

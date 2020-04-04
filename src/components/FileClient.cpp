@@ -218,6 +218,46 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     return res;
 }
 
+int FileClient::SYNCWRITE(std::vector<char *> Request) {
+    // find the fd
+    int &fd = NameToFd[Request.at(1)];
+    // no fd found, open the file
+    if (fd == 0) {
+        int outTemp;
+        FOPEN(Request, outTemp);
+        // fd = NameToFd[Request.at(1)];
+    }
+
+    std::vector<char *> NewRequest;
+    NewRequest.push_back("FWRITE");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
+    NewRequest.push_back(Request.at(2));
+
+    return FWRITE(NewRequest);
+
+    // write to the file the content
+}
+int FileClient::SYNCREAD(std::vector<char *> Request) {}
+
+std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
+    std::string sRequest{""};
+    // request head
+    std::string OriginalHead(Request.at(0));
+    if (OriginalHead == "FWRITE") {
+        sRequest += "SYNCWRITE ";
+    }
+    if (OriginalHead == "FREAD") {
+        sRequest += "SYNCREAD ";
+    }
+    // file location
+    char *id{Request.at(1)};
+    int fd = atoi(id);
+    sRequest += FdToName[fd] + " ";
+    // content
+    sRequest += std::string(Request.at(2));
+    return sRequest;
+}
+
 // close all fd. clear references.
 FileClient::~FileClient() {
     ServerUtils::rowdy("File Client Cleaning.");

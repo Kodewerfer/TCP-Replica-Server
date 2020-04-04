@@ -11,8 +11,7 @@ STDResponse::STDResponse(int fd)
                    {"ER-SYNC-CONN", "Connection To Peers Failed"}}) {}
 
 void STDResponse::sendPayload(std::string &Content) {
-    int n{0};
-    n = send(ClientFd, Content.c_str(), Content.size(), 0);
+    send(ClientFd, Content.c_str(), Content.size(), 0);
     send(ClientFd, "\n", 1, 0);
 }
 
