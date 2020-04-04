@@ -6,7 +6,7 @@
 #define THREAD_MAX_DEFAULT 4;
 
 int main(int arg, char *argv_main[], char *envp[]) {
-    OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:p:dD");
+    OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:p:dDv");
     // For debugging output.
     ThreadsMan::T_incr = FromOpts.tincr;
 
@@ -216,10 +216,17 @@ void DoFileCallback(const int iServFD) {
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
                 OPResult = NewClient->FSEEK(RequestTokenized);
+                // sync wouldn't run if local request reported error
+                if (bSendSyncRequests && OPResult >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient->SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest, "SYNCSEEK");
+                }
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
-                // original
                 // read request return file content in an out param.
                 OPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
                 // sync wouldn't run if local request reported error
@@ -250,7 +257,8 @@ void DoFileCallback(const int iServFD) {
             }
 
             /**
-             * Receiving end of Sync Operations.
+             * Handle Sync Requests
+             * Server to Server
              * */
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
                 OPResult = NewClient->SYNCWRITE(RequestTokenized);
@@ -258,6 +266,9 @@ void DoFileCallback(const int iServFD) {
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
                 OPResult =
                     NewClient->SYNCREAD(RequestTokenized, ResponseMessage);
+            }
+            if (strcmp(TheCommand, "SYNCSEEK") == 0) {
+                OPResult = NewClient->SYNCSEEK(RequestTokenized);
             }
 
             /**
@@ -269,7 +280,7 @@ void DoFileCallback(const int iServFD) {
                 if (SyncCallback(OPResult, ResponseMessage)) {
                     NewRes->file(OPResult, ResponseMessage);
                 } else {
-                    throw std::string("ER-SYNC-READ");
+                    throw std::string("ER-SYNC");
                 }
             } else if (previousFd > 0) {
                 NewRes->fileFdInUse(previousFd);
@@ -354,7 +365,17 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
-                int peerRead{std::stoi(Tokenized.at(1))};
+                if (Tokenized.size() < 2) {
+                    continue;
+                }
+                int peerRead;
+                try {
+                    peerRead = {std::stoi(Tokenized.at(1))};
+                } catch (const std::exception &e) {
+                    ServerUtils::buoy(e.what());
+                    continue;
+                }
+                // read bits and content must be the same.
                 if (peerRead == OPResult && Message == Tokenized.at(2)) {
                     ++Vote;
                 }
@@ -372,7 +393,17 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
-                int peerRead{std::stoi(Tokenized.at(1))};
+                if (Tokenized.size() < 2) {
+                    continue;
+                }
+                int peerRead;
+                try {
+                    peerRead = {std::stoi(Tokenized.at(1))};
+                } catch (const std::exception &e) {
+                    ServerUtils::buoy(e.what());
+                    continue;
+                }
+                // read bits must be the same
                 if (peerRead == OPResult) {
                     ++Vote;
                 }
@@ -479,6 +510,11 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
                 // debug
                 ServerUtils::bIsDebugging = true;
                 FileClient::bIsDebugging = true;
+                break;
+            }
+            case 'v': {
+                // debug
+                ServerUtils::bIsNoisy = true;
                 break;
             }
         }

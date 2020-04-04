@@ -5,6 +5,7 @@ std::atomic<bool> ServerUtils::bSIGHUPReceived{false};
 
 bool ServerUtils::bRunningBackground{true};
 bool ServerUtils::bIsDebugging{false};
+bool ServerUtils::bIsNoisy{false};
 std::mutex ServerUtils::ShellServerLock;
 
 std::vector<sockaddr_in> ServerUtils::PeersAddr;
@@ -132,7 +133,7 @@ void ServerUtils::buoy(std::string message) {
 }
 
 void ServerUtils::rowdy(std::string message) {
-    if (!bIsDebugging) {
+    if (!bIsNoisy) {
         return;
     }
 

@@ -39,6 +39,7 @@ class ServerUtils {
    public:
     static bool bRunningBackground;
     static bool bIsDebugging;
+    static bool bIsNoisy;
     static std::mutex ShellServerLock;
 
     static std::vector<sockaddr_in> PeersAddr;

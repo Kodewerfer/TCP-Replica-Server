@@ -255,11 +255,31 @@ int FileClient::SYNCREAD(std::vector<char *> Request,
     // read the data
     return FREAD(NewRequest, outRedContent);
 }
+int FileClient::SYNCSEEK(std::vector<char *> Request) {
+    // find the fd
+    int &fd = NameToFd[Request.at(1)];
+    // no fd found, open the file
+    if (fd == 0) {
+        int outTemp;
+        FOPEN(Request, outTemp);
+    }
+    // rebuild the request
+    std::vector<char *> NewRequest;
+    NewRequest.push_back("FSEEK");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
+    NewRequest.push_back(Request.at(2));
+
+    // read the data
+    return FSEEK(NewRequest);
+}
 
 std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
     std::string sRequest{""};
     // request head
     std::string OriginalHead(Request.at(0));
+    if (OriginalHead == "FSEEK") {
+        sRequest += "SYNCSEEK ";
+    }
     if (OriginalHead == "FWRITE") {
         sRequest += "SYNCWRITE ";
     }
@@ -271,7 +291,9 @@ std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
     int fd = atoi(id);
     sRequest += FdToName[fd] + " ";
     // content
-    sRequest += std::string(Request.at(2));
+    if (Request.size() > 2) {
+        sRequest += std::string(Request.at(2));
+    }
     return sRequest;
 }
 
