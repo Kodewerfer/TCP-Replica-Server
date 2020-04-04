@@ -67,4 +67,19 @@ std::vector<char *> Tokenize(const std::string &sUserInput) {
 
     return VWords;
 }
+
+std::vector<std::string> TokenizeDeluxe(const std::string &sUserInput) {
+    std::istringstream StreamStr(sUserInput);
+    std::vector<std::string> VWords;
+
+    do {
+        std::string Word;
+        StreamStr >> Word;
+
+        if (Word != "") VWords.push_back(Word);
+
+    } while (StreamStr);
+
+    return VWords;
+}
 }  // namespace Lib

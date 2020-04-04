@@ -48,8 +48,8 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &,
 void DoShellCallback(const int);
 void DoFileCallback(const int);
 // repilica handler
-std::function<bool()> HandleSync(const std::string &request,
-                                 const std::string ReqType);
+std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
+    const std::string &request, const std::string ReqType);
 /**
  *  Misc
  * */

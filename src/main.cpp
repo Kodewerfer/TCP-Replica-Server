@@ -190,7 +190,7 @@ void DoFileCallback(const int iServFD) {
     STDResponse *NewRes = new STDResponse(iServFD);
 
     // if the server is syncing with other.
-    const bool bOriginOfSyncs{ServerUtils::PeersAddr.size() > 0};
+    const bool bSendSyncRequests{ServerUtils::PeersAddr.size() > 0};
 
     int n{0};
     while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
@@ -199,34 +199,31 @@ void DoFileCallback(const int iServFD) {
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
         char *TheCommand{RequestTokenized.at(0)};
 
-        int res{NO_VALID_COM};
-        std::string message{" "};
-        // File Client
-        std::function<bool()> SyncCallback;
+        // Important parameters
+        int OPResult{NO_VALID_COM};
+        std::string ResponseMessage{" "};
+        std::function<bool(const int &, const std::string &)> SyncCallback;
+        //
         try {
             /**
-             * Normal Operations
+             * Local Operations
              * */
-
             // FOPEN
+            int previousFd{-1};
             if (strcmp(TheCommand, "FOPEN") == 0) {
-                int usedFd{-1};
-                res = NewClient->FOPEN(RequestTokenized, usedFd);
-                if (usedFd > 0) {
-                    NewRes->fileFdInUse(usedFd);
-                }
+                OPResult = NewClient->FOPEN(RequestTokenized, previousFd);
             }
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
-                res = NewClient->FSEEK(RequestTokenized);
+                OPResult = NewClient->FSEEK(RequestTokenized);
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // original
                 // read request return file content in an out param.
-                res = NewClient->FREAD(RequestTokenized, message);
+                OPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
                 // sync wouldn't run if local request reported error
-                if (bOriginOfSyncs && res >= 0) {
+                if (bSendSyncRequests && OPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
@@ -237,9 +234,9 @@ void DoFileCallback(const int iServFD) {
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
                 // local request
-                res = NewClient->FWRITE(RequestTokenized);
+                OPResult = NewClient->FWRITE(RequestTokenized);
                 // sync wouldn't run if local request reported error
-                if (bOriginOfSyncs && res >= 0) {
+                if (bSendSyncRequests && OPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
@@ -249,30 +246,36 @@ void DoFileCallback(const int iServFD) {
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
-                res = NewClient->FCLOSE(RequestTokenized);
+                OPResult = NewClient->FCLOSE(RequestTokenized);
             }
 
             /**
              * Receiving end of Sync Operations.
              * */
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
-                res = NewClient->SYNCWRITE(RequestTokenized);
+                OPResult = NewClient->SYNCWRITE(RequestTokenized);
             }
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
-                res = NewClient->SYNCREAD(RequestTokenized, message);
+                OPResult =
+                    NewClient->SYNCREAD(RequestTokenized, ResponseMessage);
             }
 
-            // Response
-            if (bOriginOfSyncs && SyncCallback != nullptr) {
+            /**
+             * Send the response to user
+             * */
+            if (bSendSyncRequests && SyncCallback != nullptr) {
                 // origin of the sync requests.
-                if (SyncCallback()) {
-                    NewRes->file(res, message);
+                // pass on the result from local operation.
+                if (SyncCallback(OPResult, ResponseMessage)) {
+                    NewRes->file(OPResult, ResponseMessage);
                 } else {
-                    NewRes->fail("ER-SYNC");
+                    throw std::string("ER-SYNC-READ");
                 }
+            } else if (previousFd > 0) {
+                NewRes->fileFdInUse(previousFd);
             } else {
                 // Normal operations
-                NewRes->file(res, message);
+                NewRes->file(OPResult, ResponseMessage);
             }
         } catch (const std::string &e) {
             // Failed.
@@ -287,8 +290,8 @@ void DoFileCallback(const int iServFD) {
     delete NewRes;
 }
 
-std::function<bool()> HandleSync(const std::string &request,
-                                 const std::string ReqType) {
+std::function<bool(const int &, const std::string &Message)> HandleSync(
+    const std::string &request, const std::string ReqType) {
     typedef std::future<std::string> PeerFuture;
 
     std::vector<PeerFuture> PSTash;
@@ -339,11 +342,45 @@ std::function<bool()> HandleSync(const std::string &request,
     }
 
     if (ReqType == "SYNCWRITE") {
-        return [ResStash]() { return true; };
+        return [ResStash](const int &OPResult, const std::string &Message) {
+            return true;
+        };
     }
 
     if (ReqType == "SYNCREAD") {
-        return [ResStash]() { return true; };
+        return [ResStash](const int &OPResult, const std::string &Message) {
+            int Vote{0};
+            const int Total{ResStash.size()};
+            //
+            for (const std::string res : ResStash) {
+                auto Tokenized = Lib::TokenizeDeluxe(res);
+                int peerRead{std::stoi(Tokenized.at(1))};
+                if (peerRead == OPResult && Message == Tokenized.at(2)) {
+                    ++Vote;
+                }
+            }
+
+            if (Vote == Total || Vote > (Total / 2)) return true;
+            return false;
+        };
+    }
+
+    if (ReqType == "SYNCSEEK") {
+        return [ResStash](const int &OPResult, const std::string &Message) {
+            int Vote{0};
+            const int Total{ResStash.size()};
+            //
+            for (const std::string res : ResStash) {
+                auto Tokenized = Lib::TokenizeDeluxe(res);
+                int peerRead{std::stoi(Tokenized.at(1))};
+                if (peerRead == OPResult) {
+                    ++Vote;
+                }
+            }
+
+            if (Vote == Total || Vote > (Total / 2)) return true;
+            return false;
+        };
     }
 
     throw "ER-SYNC";

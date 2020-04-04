@@ -39,12 +39,12 @@ int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
     // access control
     int FdRef = NameToFd[FileName];
     if (FdRef > 0) {
-        // already opened.
-        outPreviousFileFD = FdRef;
         // already opened by self.
         for (auto ele : OpenedFiles) {
             if (ele == FdRef) {
-                throw std::string("ER-F-FD");
+                // throw std::string("ER-F-FD");
+                // already opened.
+                outPreviousFileFD = FdRef;
             }
         }
     }

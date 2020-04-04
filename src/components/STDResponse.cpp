@@ -5,8 +5,7 @@ STDResponse::STDResponse(int fd)
       ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
                    {"ER-F-OP", "Error Opening The File"},
                    {"ER-F-ACEDI", "File Access Control : Action Denied"},
-                   {"ER-F-FD", "File Already Opened"},
-                   {"ER-SYNC", "Syncing Failed."},
+                   {"ER-SYNC-READ", "File Is Not In-Sync"},
                    {"ER-SYNC-SOC", "Connection Socket Error"},
                    {"ER-SYNC-CONN", "Connection To Peers Failed"}}) {}
 
