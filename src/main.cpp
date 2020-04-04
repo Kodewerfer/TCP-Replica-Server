@@ -232,7 +232,17 @@ void DoFileCallback(const int iServFD) {
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
+                // original
+                // read request return file content in an out param.
                 res = NewClient->FREAD(RequestTokenized, message);
+                // sync wouldn't run if local request reported error
+                if (bOriginOfSyncs && res >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient->SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest, "SYNCREAD");
+                }
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {

@@ -29,7 +29,7 @@ int FileClient::FDChcker(int fd) {
     return 0;
 }
 
-int FileClient::FOPEN(std::vector<char *> Request, int &outPreFd) {
+int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
     if (Request.size() < 2) {
         return PARAM_PARS;
     }
@@ -40,7 +40,7 @@ int FileClient::FOPEN(std::vector<char *> Request, int &outPreFd) {
     int FdRef = NameToFd[FileName];
     if (FdRef > 0) {
         // already opened.
-        outPreFd = FdRef;
+        outPreviousFileFD = FdRef;
         // already opened by self.
         for (auto ele : OpenedFiles) {
             if (ele == FdRef) {
@@ -86,7 +86,7 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     return res;
 }
 
-int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
+int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
     int res{0};
     if (Request.size() < 3) {
         return PARAM_PARS;
@@ -124,13 +124,13 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outMessage) {
     Control.reading -= 1;
 
     if (res == 0) {
-        outMessage = "END-OF-FILE";
+        outRedContent = "END-OF-FILE";
         return res;
     }
 
     //
     std::string tmp(buff);
-    outMessage = tmp;
+    outRedContent = tmp;
 
     return res;
 }
@@ -237,7 +237,24 @@ int FileClient::SYNCWRITE(std::vector<char *> Request) {
 
     // write to the file the content
 }
-int FileClient::SYNCREAD(std::vector<char *> Request) {}
+int FileClient::SYNCREAD(std::vector<char *> Request) {
+    // find the fd
+    int &fd = NameToFd[Request.at(1)];
+    // no fd found, open the file
+    if (fd == 0) {
+        int outTemp;
+        FOPEN(Request, outTemp);
+    }
+    // rebuild the request
+    std::vector<char *> NewRequest;
+    NewRequest.push_back("FWRITE");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
+    NewRequest.push_back(Request.at(2));
+
+    // read the data
+    // int OutTrash;
+    // return FREAD(NewRequest, OutTrash);
+}
 
 std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
     std::string sRequest{""};

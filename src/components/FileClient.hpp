@@ -58,9 +58,12 @@ class FileClient {
     static bool bIsDebugging;
 
    public:
-    int FOPEN(std::vector<char *> Request, int &outPreFd);
+    /* if the file has been opened by other users, return the fd in the out
+     parameter. */
+    int FOPEN(std::vector<char *> Request, int &outPreviousFileFD);
     int FSEEK(std::vector<char *> Request);
-    int FREAD(std::vector<char *> Request, std::string &outMessage);
+    /* Return the file's content in the out parameter */
+    int FREAD(std::vector<char *> Request, std::string &outRedContent);
     int FWRITE(std::vector<char *> Request);
     int FCLOSE(std::vector<char *> Request);
     int SYNCWRITE(std::vector<char *> Request);
