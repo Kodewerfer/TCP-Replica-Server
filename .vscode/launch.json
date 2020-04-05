@@ -43,8 +43,8 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/shfd",
-      "args": ["-d", "-v", "-p", "127.0.0.1:9003"], //as front end
-      // "args": ["-d", "-f", "9003", "-s", "9002"], // as a replica point
+      // "args": ["-d", "-v", "-p", "127.0.0.1:9003"], //as front end
+      "args": ["-d", "-D", "-v", "-f", "9003", "-s", "9002"], // as a replica point
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],

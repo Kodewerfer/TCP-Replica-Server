@@ -1,6 +1,7 @@
 #include "ServerUtils.hpp"
 
 ServerSockets ServerUtils::SocketReference;
+ServerPorts ServerUtils::PortsReference;
 std::atomic<bool> ServerUtils::bSIGHUPReceived{false};
 
 bool ServerUtils::bRunningBackground{true};
@@ -20,7 +21,7 @@ bool ServerUtils::trySighupFlag() {
 }
 
 void ServerUtils::setSocketsRef(ServerSockets &ref) { SocketReference = ref; };
-std::array<int, 2> ServerUtils::getSocketsRef() {
+std::array<int, 2> ServerUtils::getSocketsRefList() {
     return std::array<int, 2>{SocketReference.file, SocketReference.shell};
 }
 
@@ -69,10 +70,10 @@ int ServerUtils::CreateSocketMasterLocalOnly(const unsigned short port,
     return CreateSocket(port, INADDR_LOOPBACK, queue);
 }
 
-Accepted ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
-                                 socklen_t *addrlen, int TimeOut) {
+AcceptedSocket ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
+                                       socklen_t *addrlen, int TimeOut) {
     pollfd PollFromSocks[count]{0};
-    Accepted accpeted;
+    AcceptedSocket accpeted;
 
     for (int i = 0; i < count; i++) {
         PollFromSocks[i].fd = fds[i];

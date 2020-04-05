@@ -26,7 +26,12 @@ struct ServerSockets {
     int file;
 };
 
-struct Accepted {
+struct ServerPorts {
+    int shell;
+    int file;
+};
+
+struct AcceptedSocket {
     int accepted{-1};
     int newsocket{-1};
 };
@@ -42,6 +47,7 @@ class ServerUtils {
     static bool bIsNoisy;
     static std::mutex ShellServerLock;
 
+    static ServerPorts PortsReference;
     static std::vector<sockaddr_in> PeersAddr;
 
     /**
@@ -55,7 +61,8 @@ class ServerUtils {
      * Store a reference to opened socket for signal handling
      *  */
     static void setSocketsRef(ServerSockets &ref);
-    static std::array<int, 2> getSocketsRef();
+    static ServerSockets &getSocketsRef() { return SocketReference; }
+    static std::array<int, 2> getSocketsRefList();
 
     /**
      * Helper function, contains the common code for passivesocket and
@@ -79,8 +86,8 @@ class ServerUtils {
     /**
      * Poll from the two sockets, accepting when one become avalible.
      * */
-    static Accepted PollEither(int *fds, int count, sockaddr *addr,
-                               socklen_t *addrlen, int TimeOut = -1);
+    static AcceptedSocket PollEither(int *fds, int count, sockaddr *addr,
+                                     socklen_t *addrlen, int TimeOut = -1);
 
     // get the thread's id, turn it to string.
     static std::string GetTID();

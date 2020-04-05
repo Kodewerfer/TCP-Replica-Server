@@ -22,6 +22,7 @@
 #include "components/FileClient.hpp"
 #include "components/STDResponse.hpp"
 #include "components/ShellClient.hpp"
+#include "components/SyncPoint.hpp"
 #include "threads/ThreadsMan.hpp"
 
 struct OptParsed {
@@ -34,8 +35,8 @@ struct OptParsed {
 /**
  *  Main logic
  * */
-
-ServerSockets InitServer(int, int);
+void StartServer();
+ServerSockets InitSockets(int, int);
 void PrintMessage(const int iSh, const int iFi);
 void CreateThreads(ServerSockets &ServSockets, OptParsed &,
                    std::function<void(const int)> ShellCallback,
@@ -49,7 +50,8 @@ void DoShellCallback(const int);
 void DoFileCallback(const int);
 // repilica handler
 std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
-    const std::string &request, const std::string ReqType);
+    std::vector<SyncPoint> &PeersStash, const std::string &SyncRequest,
+    const std::string RequestType);
 /**
  *  Misc
  * */

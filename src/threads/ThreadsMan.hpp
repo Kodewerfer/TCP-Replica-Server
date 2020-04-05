@@ -17,27 +17,28 @@ class ThreadsMan {
     static std::mutex SSocksLock;
 
     // Dynamic reconfig
-    static std::atomic<bool> bIsServerQuiting;
+    static std::atomic<bool> bThreadKillSwitch;
 
     static std::atomic<int> ThreadsCount;
     static std::atomic<int> ActiveThreads;
     static std::atomic<int> QuitingThreads;
     // static std::mutex QuitingLock;
-    static bool tryQuitting();
-
    public:
     static int T_incr;
-
     static std::vector<std::thread> ThreadStash;
     static std::condition_variable NeedMoreThreads;
 
+   private:
+    static bool tryThreadQuitting();
+
+   public:
     static void addSScokRef(int);
     static void removeSScokRef(int);
     static void CloseAllSSocks();
 
-    static void StartServerQuiting() { bIsServerQuiting = true; }
-    static void StopServerQuiting() { bIsServerQuiting = false; }
-    static void RestCounters() {
+    static void KillIdleThreads() { bThreadKillSwitch = true; }
+    static void StopKillIdles() { bThreadKillSwitch = false; }
+    static void RestThreadsCounters() {
         ThreadsCount = 0;
         ActiveThreads = 0;
     };

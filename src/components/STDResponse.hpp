@@ -22,7 +22,7 @@ class STDResponse {
    public:
     STDResponse(int fd);
     void file(int code, std::string messages = " ");
-    void fileFdInUse(int fd);
+    void fileInUse(int fd);
     // void file(std::messages);
     void shell(int, std::string message = " ");
     void fail(std::string ServerCode);

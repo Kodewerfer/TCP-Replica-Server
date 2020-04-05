@@ -2,9 +2,34 @@
 
 // File access control
 bool FileClient::bIsDebugging{false};
-std::map<int, std::string> FileClient::FdToName{};
-std::map<std::string, int> FileClient::NameToFd{};
-std::map<std::string, AccessCtl> FileClient::FileAccess{};
+
+std::vector<int> FileClient::OpenedFiles;
+std::map<int, std::string> FileClient::FdToName;
+std::map<std::string, int> FileClient::NameToFd;
+std::map<std::string, AccessCtl> FileClient::FILE_ACCESS;
+
+void FileClient::endWritingAndNotify(AccessCtl &Control) {
+    Control.writing -= 1;
+    Control.WaitOnWrite.notify_all();
+}
+void FileClient::endReadingAndNotify(AccessCtl &Control) {
+    Control.reading -= 1;
+    Control.WaitOnRead.notify_all();
+}
+
+void FileClient::CleanUp() {
+    // Clean up all fds
+    for (const int &fd : OpenedFiles) {
+        close(fd);
+    }
+
+    // erase all references.
+    OpenedFiles.erase(OpenedFiles.begin(), OpenedFiles.end());
+    FdToName.erase(FdToName.begin(), FdToName.end());
+    NameToFd.erase(NameToFd.begin(), NameToFd.end());
+    FILE_ACCESS.erase(FILE_ACCESS.begin(), FILE_ACCESS.end());
+    return;
+}
 
 LastRequest FileClient::PreprocessReq(std::vector<char *> Request) {
     char *id{Request.at(1)};
@@ -39,17 +64,13 @@ int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
     // access control
     int FdRef = NameToFd[FileName];
     if (FdRef > 0) {
-        // already opened by self.
-        for (auto ele : OpenedFiles) {
-            if (ele == FdRef) {
-                // throw std::string("ER-F-FD");
-                // already opened.
-                outPreviousFileFD = FdRef;
-            }
-        }
+        // already opened.
+        outPreviousFileFD = FdRef;
+        return 0;
     }
 
-    int iFd = open(Request.at(1), O_RDWR | (O_APPEND | O_CREAT), S_IRWXU);
+    // int iFd = open(Request.at(1), O_RDWR | (O_APPEND | O_CREAT), S_IRWXU);
+    int iFd = open(Request.at(1), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 
     if (iFd < 0) {
         throw std::string("ER-F-OP");
@@ -78,11 +99,22 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
+
+    // file access control
+    std::string FileName = FdToName[Req.fd];
+    AccessCtl &Control = FILE_ACCESS[FileName];
+
+    std::mutex FREADMutex;
+    std::unique_lock<std::mutex> FREADLock(FREADMutex);
+
+    // !! Conditional !!
+    Control.WaitOnWrite.wait(FREADLock, [&] { return Control.writing < 1; });
     //
+    Control.reading += 1;
     if (lseek(Req.fd, Req.params, SEEK_CUR) <= 0) {
         res = -1;
     }
-
+    endReadingAndNotify(Control);
     return res;
 }
 
@@ -102,13 +134,16 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
 
     // file access control
     std::string FileName = FdToName[Req.fd];
-    AccessCtl &Control = FileAccess[FileName];
+    AccessCtl &Control = FILE_ACCESS[FileName];
 
-    if (Control.writing > 0) {
-        throw std::string("ER-F-ACEDI");
-    }
+    std::mutex FREADMutex;
+    std::unique_lock<std::mutex> FREADLock(FREADMutex);
+
+    // !! Conditional !!
+    Control.WaitOnWrite.wait(FREADLock, [&] { return Control.writing < 1; });
 
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is reading.");
+
     Control.reading += 1;
 
     if (bIsDebugging) {
@@ -121,7 +156,8 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
         res = -1;
     }
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends reading.");
-    Control.reading -= 1;
+
+    endReadingAndNotify(Control);
 
     if (res == 0) {
         outRedContent = "END-OF-FILE";
@@ -151,15 +187,17 @@ int FileClient::FWRITE(std::vector<char *> Request) {
 
     // file access control
     std::string FileName = FdToName[fd];
-    AccessCtl &Control = FileAccess[FileName];
+    AccessCtl &Control = FILE_ACCESS[FileName];
+
+    std::mutex FWRITEMutex;
+    std::unique_lock<std::mutex> FWRITELock(FWRITEMutex);
+
+    // !! Conditional !!
+    Control.WaitOnRead.wait(FWRITELock, [&] { return Control.reading < 1; });
 
     // !! LOCKING !!
-    std::unique_lock<std::mutex> WritingLock(Control.writeLock,
-                                             std::try_to_lock);
-    if (Control.reading > 0 || !WritingLock.owns_lock()) {
-        //  abort.
-        throw std::string("ER-F-ACEDI");
-    }
+    std::lock_guard<std::mutex> WriteGuard(Control.writeLock);
+
     // Critial region
     Control.writing += 1;
 
@@ -168,12 +206,13 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     if (bIsDebugging) {
         sleep(3);
     }
+
     // Write
     res = write(fd, Request.at(2), strlen(Request.at(2)));
 
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends seeking.");
 
-    Control.writing -= 1;
+    endWritingAndNotify(Control);
 
     if (res <= 0) {
         // failed
@@ -196,6 +235,9 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     if (FilterFlag < 0) {
         return FilterFlag;
     }
+
+    // Access control
+
     // remove the reference first while still holding the fd.
     std::string FileName = FdToName[fd];
     if (NameToFd[FileName] == fd) {
@@ -229,7 +271,7 @@ int FileClient::SYNCWRITE(std::vector<char *> Request) {
     }
 
     std::vector<char *> NewRequest;
-    NewRequest.push_back("FWRITE");
+    NewRequest.push_back((char *)"FWRITE");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
 
@@ -248,7 +290,7 @@ int FileClient::SYNCREAD(std::vector<char *> Request,
     }
     // rebuild the request
     std::vector<char *> NewRequest;
-    NewRequest.push_back("FWRITE");
+    NewRequest.push_back((char *)"FWRITE");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
 
@@ -265,7 +307,7 @@ int FileClient::SYNCSEEK(std::vector<char *> Request) {
     }
     // rebuild the request
     std::vector<char *> NewRequest;
-    NewRequest.push_back("FSEEK");
+    NewRequest.push_back((char *)"FSEEK");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
 
@@ -299,15 +341,15 @@ std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
 
 // close all fd. clear references.
 FileClient::~FileClient() {
-    ServerUtils::rowdy("File Client Cleaning.");
-    if (OpenedFiles.size() > 0) {
-        for (auto fd : OpenedFiles) {
-            // remove the reference first while still holding the fd.
-            std::string FileName = FdToName[fd];
-            if (NameToFd[FileName] == fd) {
-                NameToFd[FileName] = 0;
-            }
-            close(fd);
-        }
-    }
+    // ServerUtils::rowdy("File Client Cleaning.");
+    // if (OpenedFiles.size() > 0) {
+    //     for (auto fd : OpenedFiles) {
+    //         // remove the reference first while still holding the fd.
+    //         std::string FileName = FdToName[fd];
+    //         if (NameToFd[FileName] == fd) {
+    //             NameToFd[FileName] = 0;
+    //         }
+    //         close(fd);
+    //     }
+    // }
 }

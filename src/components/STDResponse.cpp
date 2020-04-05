@@ -4,6 +4,7 @@ STDResponse::STDResponse(int fd)
     : ClientFd(fd),
       ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
                    {"ER-F-OP", "Error Opening The File"},
+                   {"ERSHL", "Shell Command Dose Not Exists"},
                    {"ER-F-ACEDI", "File Access Control : Action Denied"},
                    {"ER-SYNC", "Files Are Not In-Sync"},
                    {"ER-SYNC-SOK", "Connection Socket Error"},
@@ -50,7 +51,7 @@ void STDResponse::file(int code, std::string message) {
     return;
 }
 
-void STDResponse::fileFdInUse(int fd) {
+void STDResponse::fileInUse(int fd) {
     std::string Payload = "ERR ";
     Payload += std::to_string(fd) + " ";
     Payload += "This File Has Already Been Opened";

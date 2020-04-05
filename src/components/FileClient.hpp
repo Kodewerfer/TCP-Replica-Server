@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -31,33 +32,33 @@ struct AccessCtl {
     std::atomic<int> reading{0};
     std::atomic<int> writing{0};
     std::mutex writeLock;
+    std::condition_variable WaitOnRead;
+    std::condition_variable WaitOnWrite;
 };
 
 class FileClient {
-    // Statics
    private:
+    // fds for all files opened by all users.
+    static std::vector<int> OpenedFiles;
     // file access control
     static std::map<int, std::string> FdToName;
     static std::map<std::string, int> NameToFd;
-    static std::map<std::string, AccessCtl> FileAccess;
+    static std::map<std::string, AccessCtl> FILE_ACCESS;
 
-   private:
-    // Stored FDs
-    std::vector<int> OpenedFiles;
-    // Turn fd and param(if apply) to int.
-    LastRequest PreprocessReq(std::vector<char *> Request);
-    /**
-     *   Check if the fs is valid.
-     *   If there is any file in this session been opened.
-     *   If This fd has been previously opened in this session.
-     * */
-    int FDChcker(int fd);
-
-    // Statics
    public:
     static bool bIsDebugging;
 
+   private:
+    static void endWritingAndNotify(AccessCtl &);
+    static void endReadingAndNotify(AccessCtl &);
+    // Stored FDs
+    // Turn fd and param(if apply) to int.
+    LastRequest PreprocessReq(std::vector<char *> Request);
+    // Check if the fs is valid. if it has been opened.
+    int FDChcker(int fd);
+
    public:
+    static void CleanUp();
     /* if the file has been opened by other users, return the fd in the out
      parameter. */
     int FOPEN(std::vector<char *> Request, int &outPreviousFileFD);

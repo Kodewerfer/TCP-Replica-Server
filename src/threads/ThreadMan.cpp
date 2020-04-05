@@ -3,13 +3,13 @@
 std::vector<int> ThreadsMan::SSocksRef;
 std::mutex ThreadsMan::SSocksLock;
 
-std::atomic<bool> ThreadsMan::bIsServerQuiting{false};
+std::atomic<bool> ThreadsMan::bThreadKillSwitch{false};
 
 std::atomic<int> ThreadsMan::ThreadsCount{0};
 std::atomic<int> ThreadsMan::ActiveThreads{0};
 std::atomic<int> ThreadsMan::QuitingThreads{0};
 // std::mutex ThreadsMan::QuitingLock;
-bool ThreadsMan::tryQuitting() {
+bool ThreadsMan::tryThreadQuitting() {
     // std::lock_guard<std::mutex> QuittingGuard(QuitingLock);
     if (QuitingThreads + 1 > T_incr) {
         return false;
@@ -99,9 +99,9 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
 
         int iSockets[2]{ServSockets.shell, ServSockets.file};
         std::function<void(const int)> TheCallback_PTR{nullptr};
-        Accepted AcceptedSocket;
+        AcceptedSocket AcceptedSocket;
         //
-        const int POLL_TIME_OUT{6000};
+        const int POLL_TIME_OUT{60000};
 
         /**
          * Run callbacks
@@ -145,7 +145,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         }
 
         // Quit immediately if quiting.
-        if (bIsServerQuiting) {
+        if (bThreadKillSwitch) {
             break;
         }
 
@@ -159,7 +159,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         const int Tincr{T_incr};
 
         if (N > Tincr && N_Active < (N - Tincr - 1)) {
-            if (tryQuitting()) {
+            if (tryThreadQuitting()) {
                 ServerUtils::rowdy("Thread Quiting..");
                 break;
             }

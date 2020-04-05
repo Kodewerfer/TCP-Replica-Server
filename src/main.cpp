@@ -7,25 +7,17 @@
 
 int main(int arg, char *argv_main[], char *envp[]) {
     OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:p:dDv");
-    // For debugging output.
+    // remember important params
     ThreadsMan::T_incr = FromOpts.tincr;
+    ServerUtils::PortsReference = {FromOpts.sh, FromOpts.fi};
 
     // daemonize
     if (ServerUtils::bRunningBackground) {
         daemonize();
     }
 
-    ServerSockets ServSockets;
-    try {
-        const int iShPort{FromOpts.sh};
-        const int iFiPort{FromOpts.fi};
-        ServSockets = InitServer(iShPort, iFiPort);
-        PrintMessage(iShPort, iFiPort);
-        // store a reference.
-        ServerUtils::setSocketsRef(ServSockets);
-    } catch (char const *msg) {
-        ServerUtils::buoy(msg);
-    }
+    // re-usable
+    StartServer();
 
     /**
      * Dynamic reconfiguration
@@ -59,7 +51,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
 
         ServerUtils::rowdy("Main thread awaken, creating threads...");
 
-        CreateThreads(ServSockets, FromOpts, DoShellCallback, DoFileCallback);
+        CreateThreads(ServerUtils::getSocketsRef(), FromOpts, DoShellCallback,
+                      DoFileCallback);
 
         ServerUtils::rowdy("Threads Count now : " +
                            std::to_string(ThreadsMan::getThreadsCount()));
@@ -75,7 +68,22 @@ int main(int arg, char *argv_main[], char *envp[]) {
  * Main logics
  *
  **/
-ServerSockets InitServer(int iSh, int iFi) {
+
+void StartServer() {
+    ServerSockets ServSockets;
+    try {
+        const int iShPort{ServerUtils::PortsReference.shell};
+        const int iFiPort{ServerUtils::PortsReference.file};
+        ServSockets = InitSockets(iShPort, iFiPort);
+        PrintMessage(iShPort, iFiPort);
+        // store a reference.
+        ServerUtils::setSocketsRef(ServSockets);
+    } catch (char const *msg) {
+        ServerUtils::buoy(msg);
+    }
+}
+
+ServerSockets InitSockets(int iSh, int iFi) {
     // init shell server.
     int iShServSocket{-1};
     int iFiServSocket{-1};
@@ -95,7 +103,7 @@ void PrintMessage(const int iSh, const int iFi) {
 
     if (ServerUtils::PeersAddr.size() > 0) {
         ServerUtils::buoy(std::to_string(ServerUtils::PeersAddr.size()) +
-                          " Peers found, running in Replica mode.");
+                          " Peer(s) found. Running in Replica front-end mode.");
     }
 }
 
@@ -124,28 +132,25 @@ void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
     // send welcome message
-    std::string WelcomeMessage = "Shell Server Connected.";
+    std::string WelcomeMsg = "\nShell Server Connected.\n";
 
     // NEW - Shell client limit
     // !! LOCKING !!
-    std::unique_lock<std::mutex> ShellLock(ServerUtils::ShellServerLock,
-                                           std::try_to_lock);
-    if (!ShellLock.owns_lock()) {
-        WelcomeMessage =
-            "Shell Server has exceeded its limit, terminating session...";
-    }
+    std::unique_lock<std::mutex> ShellLock(ServerUtils::ShellServerLock);
+    // if (!ShellLock.owns_lock()) {
+    //     WelcomeMsg =
+    //         "Shell Server has exceeded its limit, terminating session...";
+    // }
 
-    send(iServFD, "\n", 1, 0);
-    send(iServFD, WelcomeMessage.c_str(), WelcomeMessage.size(), 0);
-    send(iServFD, "\n", 1, 0);
+    send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
 
     // Terminate the session if more than one user.
-    if (!ShellLock.owns_lock()) {
-        close(iServFD);
-        shutdown(iServFD, 1);
-        ServerUtils::buoy("Shell client Blocked");
-        return;
-    }
+    // if (!ShellLock.owns_lock()) {
+    //     close(iServFD);
+    //     shutdown(iServFD, 1);
+    //     ServerUtils::buoy("Shell client Blocked");
+    //     return;
+    // }
 
     // Normal proceeding.
     ShellClient *NewClient = new ShellClient();
@@ -169,6 +174,9 @@ void DoShellCallback(const int iServFD) {
         int ShellRes;
         try {
             ShellRes = NewClient->RunShellCommand(RequestTokenized);
+            if (ShellRes == 254) {
+                throw std::string("ERSHL");
+            }
             NewRes->shell(ShellRes);
         } catch (const std::string &e) {
             NewRes->fail(e);
@@ -186,12 +194,44 @@ void DoFileCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
 
+    std::string WelcomeMsg{"\nFile Server Connected. \n"};
+
+    std::vector<SyncPoint> PeersStash;
+
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
     // if the server is syncing with other.
     const bool bSendSyncRequests{ServerUtils::PeersAddr.size() > 0};
 
+    // establish peer links
+    int iDeadPeers{0};
+    if (bSendSyncRequests) {
+        WelcomeMsg += "Running In Replica mode. \n";
+
+        for (auto peer : ServerUtils::PeersAddr) {
+            SyncPoint SPoint;
+            try {
+                SPoint.init(peer);
+            } catch (const std::string &e) {
+                SPoint.isDead();
+                ++iDeadPeers;
+            }
+            // save it to the stash for use in handleSync.
+            PeersStash.push_back(SPoint);
+        }
+    }
+    if (bSendSyncRequests && iDeadPeers > 0) {
+        WelcomeMsg += "\nBe Advised: Cannot Connect to " +
+                      std::to_string(iDeadPeers) + " Peer(s)\n";
+        WelcomeMsg += "Actions Will Not Be In-Sync\n";
+        ServerUtils::rowdy(std::to_string(iDeadPeers) + " Peer(s) is dead");
+    }
+
+    // send welcome messages.
+    send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
+
+    // Main Loop
     int n{0};
     while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
         const std::string sRequest(req);
@@ -200,7 +240,7 @@ void DoFileCallback(const int iServFD) {
         char *TheCommand{RequestTokenized.at(0)};
 
         // Important parameters
-        int OPResult{NO_VALID_COM};
+        int iOPResult{NO_VALID_COM};
         std::string ResponseMessage{" "};
         std::function<bool(const int &, const std::string &)> SyncCallback;
         //
@@ -209,51 +249,54 @@ void DoFileCallback(const int iServFD) {
              * Local Operations
              * */
             // FOPEN
-            int previousFd{-1};
+            int iPreviousFd{-1};
             if (strcmp(TheCommand, "FOPEN") == 0) {
-                OPResult = NewClient->FOPEN(RequestTokenized, previousFd);
+                iOPResult = NewClient->FOPEN(RequestTokenized, iPreviousFd);
             }
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
-                OPResult = NewClient->FSEEK(RequestTokenized);
+                iOPResult = NewClient->FSEEK(RequestTokenized);
                 // sync wouldn't run if local request reported error
-                if (bSendSyncRequests && OPResult >= 0) {
+                if (bSendSyncRequests && iOPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback = HandleSync(SyncRequest, "SYNCSEEK");
+                    SyncCallback =
+                        HandleSync(PeersStash, SyncRequest, "SYNCSEEK");
                 }
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
-                OPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
+                iOPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
                 // sync wouldn't run if local request reported error
-                if (bSendSyncRequests && OPResult >= 0) {
+                if (bSendSyncRequests && iOPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback = HandleSync(SyncRequest, "SYNCREAD");
+                    SyncCallback =
+                        HandleSync(PeersStash, SyncRequest, "SYNCREAD");
                 }
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
                 // local request
-                OPResult = NewClient->FWRITE(RequestTokenized);
+                iOPResult = NewClient->FWRITE(RequestTokenized);
                 // sync wouldn't run if local request reported error
-                if (bSendSyncRequests && OPResult >= 0) {
+                if (bSendSyncRequests && iOPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback = HandleSync(SyncRequest, "SYNCWRITE");
+                    SyncCallback =
+                        HandleSync(PeersStash, SyncRequest, "SYNCWRITE");
                 }
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
-                OPResult = NewClient->FCLOSE(RequestTokenized);
+                iOPResult = NewClient->FCLOSE(RequestTokenized);
             }
 
             /**
@@ -261,14 +304,14 @@ void DoFileCallback(const int iServFD) {
              * Server to Server
              * */
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
-                OPResult = NewClient->SYNCWRITE(RequestTokenized);
+                iOPResult = NewClient->SYNCWRITE(RequestTokenized);
             }
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
-                OPResult =
+                iOPResult =
                     NewClient->SYNCREAD(RequestTokenized, ResponseMessage);
             }
             if (strcmp(TheCommand, "SYNCSEEK") == 0) {
-                OPResult = NewClient->SYNCSEEK(RequestTokenized);
+                iOPResult = NewClient->SYNCSEEK(RequestTokenized);
             }
 
             /**
@@ -277,16 +320,16 @@ void DoFileCallback(const int iServFD) {
             if (bSendSyncRequests && SyncCallback != nullptr) {
                 // origin of the sync requests.
                 // pass on the result from local operation.
-                if (SyncCallback(OPResult, ResponseMessage)) {
-                    NewRes->file(OPResult, ResponseMessage);
+                if (SyncCallback(iOPResult, ResponseMessage)) {
+                    NewRes->file(iOPResult, ResponseMessage);
                 } else {
                     throw std::string("ER-SYNC");
                 }
-            } else if (previousFd > 0) {
-                NewRes->fileFdInUse(previousFd);
+            } else if (iPreviousFd > 0) {
+                NewRes->fileInUse(iPreviousFd);
             } else {
                 // Normal operations
-                NewRes->file(OPResult, ResponseMessage);
+                NewRes->file(iOPResult, ResponseMessage);
             }
         } catch (const std::string &e) {
             // Failed.
@@ -302,41 +345,17 @@ void DoFileCallback(const int iServFD) {
 }
 
 std::function<bool(const int &, const std::string &Message)> HandleSync(
-    const std::string &request, const std::string ReqType) {
+    std::vector<SyncPoint> &PeersStash, const std::string &request,
+    const std::string ReqType) {
     typedef std::future<std::string> PeerFuture;
 
     std::vector<PeerFuture> PSTash;
     std::vector<std::string> ResStash;
 
     // Sync With Peers
-    for (auto &serv_addr : ServerUtils::PeersAddr) {
-        PeerFuture GetFromPeer = std::async([&]() {
-            int sock{-1};
-            char buffer[256]{0};
-
-            // create socket to peer
-            if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-                return std::string("ER-SYNC-SOC");
-            }
-            // make connection
-            if (connect(sock, (struct sockaddr *)&serv_addr,
-                        sizeof(serv_addr)) < 0) {
-                return std::string("ER-SYNC-CONN");
-            }
-
-            // send to the peer
-            send(sock, request.c_str(), request.size(), 0);
-            // Close connection
-            shutdown(sock, SHUT_WR);
-
-            // Poll response
-            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 500};
-            Lib::recv_nonblock(sock, buffer, 256, POLL_TIME_OUT);
-
-            close(sock);
-
-            return std::string(buffer);
-        });
+    for (auto &Peer : PeersStash) {
+        PeerFuture GetFromPeer =
+            std::async([&]() { return Peer.SendAndRread(request); });
 
         PSTash.push_back(std::move(GetFromPeer));
     }
@@ -361,7 +380,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     if (ReqType == "SYNCREAD") {
         return [ResStash](const int &OPResult, const std::string &Message) {
             int Vote{0};
-            const int Total{ResStash.size()};
+            int Total{ResStash.size()};
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
@@ -389,7 +408,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     if (ReqType == "SYNCSEEK") {
         return [ResStash](const int &OPResult, const std::string &Message) {
             int Vote{0};
-            const int Total{ResStash.size()};
+            int Total{ResStash.size()};
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
@@ -561,18 +580,19 @@ void HandleSIGQUIT(int sig) {
     ServerUtils::buoy("Server Quiting... ");
 
     // close master sockets.
-    std::array<int, 2> Socks = ServerUtils::getSocketsRef();
+    std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
     for (auto i : Socks) {
         // close(i);
         shutdown(i, SHUT_RD);
         close(i);
     }
     // set the flag
-    ThreadsMan::StartServerQuiting();
+    ThreadsMan::KillIdleThreads();
 
     // Kill all on going connections.
     ThreadsMan::CloseAllSSocks();
 
+    FileClient::CleanUp();
     std::this_thread::sleep_for(std::chrono::seconds(1));
     // QUIT
     _Exit(EXIT_SUCCESS);
@@ -583,15 +603,27 @@ void HandleSIGHUP(int sig) {
     ServerUtils::buoy("Server Restarting... ");
 
     // set the flag
-    ThreadsMan::StartServerQuiting();
+    ThreadsMan::KillIdleThreads();
+
+    // close master sockets.
+    std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
+    for (auto i : Socks) {
+        // close(i);
+        shutdown(i, SHUT_RD);
+        close(i);
+    }
 
     // Kill all on going connections.
     ThreadsMan::CloseAllSSocks();
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    ThreadsMan::RestCounters();
-    ThreadsMan::StopServerQuiting();
+    // clean up operations
+    ThreadsMan::RestThreadsCounters();
+    FileClient::CleanUp();
+
+    ThreadsMan::StopKillIdles();
+    StartServer();
     // std::this_thread::sleep_for(std::chrono::milliseconds(300));
     // create threads
     ServerUtils::setSigHupFlag();
