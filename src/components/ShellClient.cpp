@@ -30,8 +30,8 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
     if (iPId == 0) {
         // child process
 
-        // FIXME
-        sleep(5);
+        // FIXME:
+        // sleep(5);
 
         /* Pipe the console outputs to the parent to store. */
         close(TheLine[0]);

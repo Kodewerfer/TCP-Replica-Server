@@ -18,11 +18,12 @@ class ThreadsMan {
 
     // Dynamic reconfig
     static std::atomic<bool> bThreadKillSwitch;
+    static std::atomic<bool> bThreadQuitSwitch;
 
     static std::atomic<int> ThreadsCount;
     static std::atomic<int> ActiveThreads;
     static std::atomic<int> QuitingThreads;
-    // static std::mutex QuitingLock;
+
    public:
     static int T_incr;
     static std::vector<std::thread> ThreadStash;

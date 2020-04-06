@@ -4,18 +4,20 @@ std::vector<int> ThreadsMan::SSocksRef;
 std::mutex ThreadsMan::SSocksLock;
 
 std::atomic<bool> ThreadsMan::bThreadKillSwitch{false};
+std::atomic<bool> ThreadsMan::bThreadQuitSwitch{false};
 
 std::atomic<int> ThreadsMan::ThreadsCount{0};
 std::atomic<int> ThreadsMan::ActiveThreads{0};
 std::atomic<int> ThreadsMan::QuitingThreads{0};
 // std::mutex ThreadsMan::QuitingLock;
 bool ThreadsMan::tryThreadQuitting() {
-    // std::lock_guard<std::mutex> QuittingGuard(QuitingLock);
     if (QuitingThreads + 1 > T_incr) {
         return false;
     }
+    bThreadQuitSwitch = true;
     QuitingThreads += 1;
     if (QuitingThreads == T_incr) {
+        bThreadQuitSwitch = false;
         ThreadsCount -= QuitingThreads;
         QuitingThreads = 0;
     }
@@ -87,21 +89,18 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
     sockaddr_in ClientAddrSTR;
     unsigned int iClientAddrLen = sizeof(ClientAddrSTR);
 
+    int iSockets[2]{ServSockets.shell, ServSockets.file};
+    //
+    const int POLL_TIME_OUT{60000};
+
     /**
      *  Thread's main loop
      *  - handle client
      *  - clean up thread if needed
      * */
     while (true) {
-        /**
-         *  Client handle
-         * */
-
-        int iSockets[2]{ServSockets.shell, ServSockets.file};
         std::function<void(const int)> TheCallback_PTR{nullptr};
         AcceptedSocket AcceptedSocket;
-        //
-        const int POLL_TIME_OUT{60000};
 
         /**
          * Run callbacks
@@ -149,18 +148,27 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
             break;
         }
 
-        // No data or time out proceed to clean up
-
         /**
          * Thread cleanup
          * */
+        // FIXME:
+        // try resume quiting
+        if (bThreadQuitSwitch) {
+            if (tryThreadQuitting()) {
+                ServerUtils::rowdy("Thread Quiting..");
+                break;
+            }
+        }
+
+        // try to initilize the clean up
         const int N{ThreadsMan::getThreadsCount()};
         const int N_Active{ThreadsMan::getActiveThreads()};
         const int Tincr{T_incr};
 
         if (N > Tincr && N_Active < (N - Tincr - 1)) {
             if (tryThreadQuitting()) {
-                ServerUtils::rowdy("Thread Quiting..");
+                // std::this_thread::sleep_for(std::chrono::seconds(20));
+                ServerUtils::rowdy("Initiate Quiting..");
                 break;
             }
         }

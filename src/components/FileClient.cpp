@@ -11,10 +11,12 @@ std::map<std::string, AccessCtl> FileClient::FILE_ACCESS;
 void FileClient::endWritingAndNotify(AccessCtl &Control) {
     Control.writing -= 1;
     Control.WaitOnWrite.notify_all();
+    Control.WaitToClose.notify_all();
 }
 void FileClient::endReadingAndNotify(AccessCtl &Control) {
     Control.reading -= 1;
     Control.WaitOnRead.notify_all();
+    Control.WaitToClose.notify_all();
 }
 
 void FileClient::CleanUp() {
@@ -95,6 +97,7 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     if (Req.params <= 0) {
         return PARAM_PARS;
     }
+
     int FilterFlag{FDChcker(Req.fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
@@ -108,7 +111,9 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     std::unique_lock<std::mutex> FREADLock(FREADMutex);
 
     // !! Conditional !!
-    Control.WaitOnWrite.wait(FREADLock, [&] { return Control.writing < 1; });
+    Control.WaitOnWrite.wait(FREADLock, [&] {
+        return (Control.writing < 1 && !Control.bIsClosing);
+    });
     //
     Control.reading += 1;
     if (lseek(Req.fd, Req.params, SEEK_CUR) <= 0) {
@@ -127,10 +132,6 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
     if (Req.params <= 0) {
         return PARAM_PARS;
     }
-    int FilterFlag{FDChcker(Req.fd)};
-    if (FilterFlag < 0) {
-        return FilterFlag;
-    }
 
     // file access control
     std::string FileName = FdToName[Req.fd];
@@ -140,7 +141,14 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
     std::unique_lock<std::mutex> FREADLock(FREADMutex);
 
     // !! Conditional !!
-    Control.WaitOnWrite.wait(FREADLock, [&] { return Control.writing < 1; });
+    Control.WaitOnWrite.wait(FREADLock, [&] {
+        return (Control.writing < 1 && !Control.bIsClosing);
+    });
+
+    int FilterFlag{FDChcker(Req.fd)};
+    if (FilterFlag < 0) {
+        return FilterFlag;
+    }
 
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is reading.");
 
@@ -180,11 +188,6 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
 
-    int FilterFlag{FDChcker(fd)};
-    if (FilterFlag < 0) {
-        return FilterFlag;
-    }
-
     // file access control
     std::string FileName = FdToName[fd];
     AccessCtl &Control = FILE_ACCESS[FileName];
@@ -193,7 +196,14 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     std::unique_lock<std::mutex> FWRITELock(FWRITEMutex);
 
     // !! Conditional !!
-    Control.WaitOnRead.wait(FWRITELock, [&] { return Control.reading < 1; });
+    Control.WaitOnRead.wait(FWRITELock, [&] {
+        return (Control.reading < 1 && !Control.bIsClosing);
+    });
+
+    int FilterFlag{FDChcker(fd)};
+    if (FilterFlag < 0) {
+        return FilterFlag;
+    }
 
     // !! LOCKING !!
     std::lock_guard<std::mutex> WriteGuard(Control.writeLock);
@@ -210,7 +220,7 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     // Write
     res = write(fd, Request.at(2), strlen(Request.at(2)));
 
-    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends seeking.");
+    ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " ends writing.");
 
     endWritingAndNotify(Control);
 
@@ -231,20 +241,26 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
 
+    // Access control
+    std::string FileName = FdToName[fd];
+    AccessCtl &Control = FILE_ACCESS[FileName];
+
+    std::mutex FCLOSEMutex;
+    std::unique_lock<std::mutex> FCLOSELock(FCLOSEMutex);
+
+    // !! Conditional !!
+    Control.WaitToClose.wait(FCLOSELock, [&] {
+        return (Control.reading < 1 && Control.writing < 1);
+    });
+
+    Control.bIsClosing = true;
+
     int FilterFlag{FDChcker(fd)};
     if (FilterFlag < 0) {
         return FilterFlag;
     }
 
-    // Access control
-
     // remove the reference first while still holding the fd.
-    std::string FileName = FdToName[fd];
-    if (NameToFd[FileName] == fd) {
-        NameToFd[FileName] = -1;
-    }
-    // close fd, release the resource
-    close(fd);
     int index{0};
     for (auto ele : OpenedFiles) {
         if (ele == fd) {
@@ -252,12 +268,60 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
         }
         index++;
     }
+
     OpenedFiles.erase(OpenedFiles.begin() + index);
+
+    if (NameToFd[FileName] == fd) {
+        NameToFd[FileName] = -1;
+    }
 
     // remove fd ref.
     FdToName.erase(fd);
+    // close fd, release the resource
+    close(fd);
+
+    FILE_ACCESS.erase(FileName);
 
     return res;
+}
+
+// Sync requests
+
+int FileClient::SYNCSEEK(std::vector<char *> Request) {
+    // find the fd
+    int &fd = NameToFd[Request.at(1)];
+    // no fd found, open the file
+    if (fd == 0) {
+        int outTemp;
+        FOPEN(Request, outTemp);
+    }
+    // rebuild the request
+    std::vector<char *> NewRequest;
+    NewRequest.push_back((char *)"FSEEK");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
+    NewRequest.push_back(Request.at(2));
+
+    // read the data
+    return FSEEK(NewRequest);
+}
+
+int FileClient::SYNCREAD(std::vector<char *> Request,
+                         std::string &outRedContent) {
+    // find the fd
+    int &fd = NameToFd[Request.at(1)];
+    // no fd found, open the file
+    if (fd == 0) {
+        int outTemp;
+        FOPEN(Request, outTemp);
+    }
+    // rebuild the request
+    std::vector<char *> NewRequest;
+    NewRequest.push_back((char *)"FWRITE");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
+    NewRequest.push_back(Request.at(2));
+
+    // read the data
+    return FREAD(NewRequest, outRedContent);
 }
 
 int FileClient::SYNCWRITE(std::vector<char *> Request) {
@@ -279,40 +343,25 @@ int FileClient::SYNCWRITE(std::vector<char *> Request) {
 
     // write to the file the content
 }
-int FileClient::SYNCREAD(std::vector<char *> Request,
-                         std::string &outRedContent) {
+
+int FileClient::SYNCCLOSE(std::vector<char *> Request) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
     if (fd == 0) {
         int outTemp;
         FOPEN(Request, outTemp);
+        // fd = NameToFd[Request.at(1)];
     }
-    // rebuild the request
-    std::vector<char *> NewRequest;
-    NewRequest.push_back((char *)"FWRITE");
-    NewRequest.push_back((char *)std::to_string(fd).c_str());
-    NewRequest.push_back(Request.at(2));
 
-    // read the data
-    return FREAD(NewRequest, outRedContent);
-}
-int FileClient::SYNCSEEK(std::vector<char *> Request) {
-    // find the fd
-    int &fd = NameToFd[Request.at(1)];
-    // no fd found, open the file
-    if (fd == 0) {
-        int outTemp;
-        FOPEN(Request, outTemp);
-    }
-    // rebuild the request
-    std::vector<char *> NewRequest;
-    NewRequest.push_back((char *)"FSEEK");
-    NewRequest.push_back((char *)std::to_string(fd).c_str());
-    NewRequest.push_back(Request.at(2));
+    // std::vector<char *> NewRequest;
+    // NewRequest.push_back((char *)"FWRITE");
+    // NewRequest.push_back((char *)std::to_string(fd).c_str());
+    // NewRequest.push_back(Request.at(2));
 
-    // read the data
-    return FSEEK(NewRequest);
+    // return FWRITE(NewRequest);
+
+    // write to the file the content
 }
 
 std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {

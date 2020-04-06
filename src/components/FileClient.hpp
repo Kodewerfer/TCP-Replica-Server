@@ -29,11 +29,13 @@ struct LastRequest {
 };
 
 struct AccessCtl {
+    std::atomic<bool> bIsClosing;
     std::atomic<int> reading{0};
     std::atomic<int> writing{0};
     std::mutex writeLock;
     std::condition_variable WaitOnRead;
     std::condition_variable WaitOnWrite;
+    std::condition_variable WaitToClose;
 };
 
 class FileClient {
@@ -67,9 +69,10 @@ class FileClient {
     int FREAD(std::vector<char *> Request, std::string &outRedContent);
     int FWRITE(std::vector<char *> Request);
     int FCLOSE(std::vector<char *> Request);
-    int SYNCWRITE(std::vector<char *> Request);
-    int SYNCREAD(std::vector<char *> Request, std::string &outRedContent);
     int SYNCSEEK(std::vector<char *> Request);
+    int SYNCREAD(std::vector<char *> Request, std::string &outRedContent);
+    int SYNCWRITE(std::vector<char *> Request);
+    int SYNCCLOSE(std::vector<char *> Request);
     // Helper functions
     std::string SyncRequestBuilder(std::vector<char *> Request);
     ~FileClient();

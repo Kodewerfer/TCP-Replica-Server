@@ -111,9 +111,7 @@ std::string ServerUtils::GetTID() {
     return mystring;
 }
 
-/*
-    FIXME:These logging methods are garbage.
- */
+// TODO: better logging
 void ServerUtils::buoy(std::string message) {
     std::time_t result = std::time(nullptr);
 
