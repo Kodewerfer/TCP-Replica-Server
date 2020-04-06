@@ -10,9 +10,10 @@
 #include <map>
 #include <string>
 
+#include "../ServerUtils.hpp"
 #include "FileClient.hpp"
 
-class STDResponse {
+class ServerResponse {
    private:
     // SERVER ERROR CODE
     static std::map<std::string, std::string> ERROR_CODES;
@@ -23,7 +24,7 @@ class STDResponse {
     void sendPayload(std::string &);
 
    public:
-    STDResponse(const int fd);
+    ServerResponse(const int fd);
     // For file err or ok
     void file(int code, std::string messages = " ");
     // only if file was opened.

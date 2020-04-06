@@ -13,6 +13,7 @@ void SyncPoint::init(sockaddr_in PeerAddress) {
     ServerUtils::rowdy("Connecting To Peer...");
     // create socket to peer
     if ((PeerSock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        // throw std::string("ER-SYNC-SOC");
         throw std::string("ER-SYNC-SOC");
     }
     // make connection

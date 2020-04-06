@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "../ServerUtils.hpp"
+#include "ServerExceptions.hpp"
 
 // Numbered error codes
 const int NO_SUCH_FILE = -1;

@@ -1,6 +1,6 @@
-#include "STDResponse.hpp"
+#include "ServerResponse.hpp"
 
-std::map<std::string, std::string> STDResponse::ERROR_CODES{
+std::map<std::string, std::string> ServerResponse::ERROR_CODES{
     {"ERPIP", "Error Creating The Pipe"},
     {"ER-F-OP", "Error Opening The File"},
     {"ERSHL", "Shell Command Dose Not Exists"},
@@ -8,14 +8,14 @@ std::map<std::string, std::string> STDResponse::ERROR_CODES{
     {"ER-SYNC-SOK", "Connection Socket Error"},
     {"ER-SYNC-CONN", "Connection To Peers Failed"}};
 
-STDResponse::STDResponse(const int fd) : ClientFd(fd) {}
+ServerResponse::ServerResponse(const int fd) : ClientFd(fd) {}
 
-void STDResponse::sendPayload(std::string &Content) {
+void ServerResponse::sendPayload(std::string &Content) {
     Content += "\n";
     send(ClientFd, Content.c_str(), Content.size(), 0);
 }
 
-void STDResponse::file(int code, std::string message) {
+void ServerResponse::file(int code, std::string message) {
     bool bIsSuccess{code >= 0};
     std::string Payload = "";
 
@@ -50,7 +50,7 @@ void STDResponse::file(int code, std::string message) {
     return;
 }
 
-void STDResponse::fileInUse(int fd) {
+void ServerResponse::fileInUse(int fd) {
     std::string Payload = "ERR ";
     Payload += std::to_string(fd) + " ";
     Payload += "This File Has Already Been Opened";
@@ -58,7 +58,7 @@ void STDResponse::fileInUse(int fd) {
     sendPayload(Payload);
 }
 
-void STDResponse::shell(int code, std::string message) {
+void ServerResponse::shell(int code, std::string message) {
     std::string Payload = "";
     // stat
     if (code == 0) Payload += "OK ";
@@ -86,7 +86,7 @@ void STDResponse::shell(int code, std::string message) {
     return;
 }
 
-void STDResponse::fail(std::string ServerCode) {
+void ServerResponse::fail(std::string ServerCode) {
     std::string Payload = "FAIL " + ServerCode + " ";
 
     Payload += ERROR_CODES[ServerCode];
@@ -96,7 +96,7 @@ void STDResponse::fail(std::string ServerCode) {
     return;
 }
 
-void STDResponse::syncFail() {
+void ServerResponse::syncFail() {
     std::string Payload = "SYNC FAIL ";
 
     sendPayload(Payload);

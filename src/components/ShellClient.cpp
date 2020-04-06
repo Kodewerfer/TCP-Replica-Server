@@ -22,7 +22,7 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
     int TheLine[2]{-1};
     if (pipe(TheLine) == -1) {
         // pipe creation error
-        throw std::string("ERPIP");
+        throw ShellException("ERPIP");
     }
 
     // FORKING

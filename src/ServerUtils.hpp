@@ -21,6 +21,8 @@
 #include <thread>
 #include <vector>
 
+#include "components/ServerExceptions.hpp"
+
 struct ServerSockets {
     int shell;
     int file;

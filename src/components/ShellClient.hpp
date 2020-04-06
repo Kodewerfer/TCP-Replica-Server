@@ -12,6 +12,7 @@
 
 #include "../Lib.hpp"
 #include "../ServerUtils.hpp"
+#include "ServerExceptions.hpp"
 
 class ShellClient {
    private:

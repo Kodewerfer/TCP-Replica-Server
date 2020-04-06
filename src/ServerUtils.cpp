@@ -32,13 +32,13 @@ int ServerUtils::CreateSocket(const unsigned short port,
     int opt{1};
     //  create socket
     if ((iSocketFD = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
-        throw "Socket Creation Error.";
+        throw ServerException("Socket Creation Error.");
         return -1;
     }
     if (setsockopt(iSocketFD, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt,
                    sizeof(opt))) {
         close(iSocketFD);
-        throw "Setsockopt Error.";
+        throw ServerException("Setsockopt Error.");
         return -1;
     }
 
@@ -51,11 +51,13 @@ int ServerUtils::CreateSocket(const unsigned short port,
 
     if (bind(iSocketFD, (sockaddr *)&strAddress, sizeof(strAddress)) < 0) {
         close(iSocketFD);
-        throw "Binding socket error.";
+        throw ServerException("Binding socket error.");
+        return -1;
     }
     if (listen(iSocketFD, backlog) < 0) {
         close(iSocketFD);
-        throw "Listening error.";
+        throw ServerException("Listening error.");
+        return -1;
     }
     return iSocketFD;
 }
@@ -82,8 +84,8 @@ AcceptedSocket ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
 
     int polled = poll(PollFromSocks, count, TimeOut);
 
-    if (polled == 0) throw "NODATA";
-    if (polled == -1) throw "ERRPOL";
+    if (polled == 0) throw AcceptingException("NO DATA");
+    if (polled == -1) throw AcceptingException("Poll Error");
 
     // return recv(sd, buf, max, 0);
 

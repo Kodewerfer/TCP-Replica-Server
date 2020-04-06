@@ -31,7 +31,6 @@ int main(int arg, char *argv_main[], char *envp[]) {
     /**
      *   Seperated Accepting and Creating logics.
      *   Main thread handle creation while threads themselves handle accepting
-     *   new client.
      *  */
     std::mutex LoopLock;
     std::unique_lock<std::mutex> Locker(LoopLock);
@@ -51,8 +50,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
 
         ServerUtils::rowdy("Main thread awaken, creating threads...");
 
-        CreateThreads(ServerUtils::getSocketsRef(), FromOpts, DoShellCallback,
-                      DoFileCallback);
+        CreateThreads(ServerUtils::getSocketsRef(), FromOpts, ShellCallback,
+                      FileCallback);
 
         ServerUtils::rowdy("Threads Count now : " +
                            std::to_string(ThreadsMan::getThreadsCount()));
@@ -63,12 +62,8 @@ int main(int arg, char *argv_main[], char *envp[]) {
     return EXIT_SUCCESS;
 }
 
-/**
- *
- * Main logics
- *
- **/
-
+/*  Main logic
+ */
 void StartServer() {
     ServerSockets ServSockets;
     try {
@@ -78,8 +73,8 @@ void StartServer() {
         PrintMessage(iShPort, iFiPort);
         // store a reference.
         ServerUtils::setSocketsRef(ServSockets);
-    } catch (char const *msg) {
-        ServerUtils::buoy(msg);
+    } catch (const std::exception &e) {
+        ServerUtils::buoy(e.what());
     }
 }
 
@@ -123,12 +118,10 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
     }
 }
 
-/**
- *
- * Callback functions
- *
- **/
-void DoShellCallback(const int iServFD) {
+/*  Callback functions
+    Actual logic for File and Shell server.
+*/
+void ShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
 
@@ -142,7 +135,7 @@ void DoShellCallback(const int iServFD) {
     send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
 
     ShellClient *NewClient = new ShellClient();
-    STDResponse *NewRes = new STDResponse(iServFD);
+    ServerResponse *NewRes = new ServerResponse(iServFD);
 
     // Main Loop
     int n{0};
@@ -164,12 +157,12 @@ void DoShellCallback(const int iServFD) {
         try {
             ShellRes = NewClient->RunShellCommand(RequestTokenized);
             if (ShellRes == 254) {
-                throw std::string("ERSHL");
+                throw ShellException("ERSHL");
             }
             NewRes->shell(ShellRes);
-        } catch (const std::string &e) {
-            NewRes->fail(e);
-            ServerUtils::buoy(e);
+        } catch (const std::exception &e) {
+            NewRes->fail(e.what());
+            ServerUtils::buoy(e.what());
         }
     }  // core client loop ends
 
@@ -179,14 +172,14 @@ void DoShellCallback(const int iServFD) {
     delete NewRes;
 }
 
-void DoFileCallback(const int iServFD) {
+void FileCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
 
     std::string WelcomeMsg{"\nFile Server Connected. \n"};
 
     FileClient *NewClient = new FileClient();
-    STDResponse *NewRes = new STDResponse(iServFD);
+    ServerResponse *NewRes = new ServerResponse(iServFD);
 
     // if the server is syncing with other.
     const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
@@ -268,7 +261,7 @@ void DoFileCallback(const int iServFD) {
                 if (SyncCallback(iOPResult, ResponseMessage)) {
                     NewRes->file(iOPResult, ResponseMessage);
                 } else {
-                    throw std::string("ER-SYNC");
+                    throw SyncException("ER-SYNC");
                 }
             } else if (iPreviousFd > 0) {
                 NewRes->fileInUse(iPreviousFd);
@@ -276,10 +269,9 @@ void DoFileCallback(const int iServFD) {
                 // Normal operations
                 NewRes->file(iOPResult, ResponseMessage);
             }
-        } catch (const std::string &e) {
+        } catch (const FileException &e) {
             // Failed.
-            NewRes->fail(e);
-            continue;
+            NewRes->fail(e.what());
         }
     }  // core client loop ends
 
@@ -348,7 +340,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     if (ReqType == "SYNCREAD") {
         return [ResStash](const int &OPResult, const std::string &Message) {
             int Vote{0};
-            int Total{ResStash.size()};
+            const int Total{(const int)ResStash.size()};
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
@@ -376,7 +368,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     if (ReqType == "SYNCSEEK") {
         return [ResStash](const int &OPResult, const std::string &Message) {
             int Vote{0};
-            int Total{ResStash.size()};
+            const int Total{(const int)ResStash.size()};
             //
             for (const std::string res : ResStash) {
                 auto Tokenized = Lib::TokenizeDeluxe(res);
@@ -401,14 +393,11 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
         };
     }
 
-    throw "ER-SYNC";
+    throw SyncException("ER-SYNC");
 }
 
-/**
- *
- * Miscs
- *
- **/
+/*  Miscs
+ */
 
 OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
     int iShPort = SHELL_DEFAULT;
@@ -509,6 +498,7 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
 
     return {iShPort, iFiPort, iThreadIncr, iThreadMax};
 }
+
 void daemonize() {
     pid_t pid;
 
@@ -543,6 +533,8 @@ void daemonize() {
     return;
 }
 
+/*  SIG Handlers
+ */
 void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
     ServerUtils::buoy("Server Quiting... ");

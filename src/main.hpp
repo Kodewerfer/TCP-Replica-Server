@@ -20,7 +20,8 @@
 #include "Lib.hpp"
 #include "ServerUtils.hpp"
 #include "components/FileClient.hpp"
-#include "components/STDResponse.hpp"
+#include "components/ServerExceptions.hpp"
+#include "components/ServerResponse.hpp"
 #include "components/ShellClient.hpp"
 #include "components/SyncPoint.hpp"
 #include "threads/ThreadsMan.hpp"
@@ -46,8 +47,8 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &,
  *  Callback for Shell or File server
  * */
 
-void DoShellCallback(const int);
-void DoFileCallback(const int);
+void ShellCallback(const int);
+void FileCallback(const int);
 // repilica handler
 std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
     const std::string &SyncRequest, const std::string RequestType);

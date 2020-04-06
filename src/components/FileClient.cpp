@@ -75,7 +75,7 @@ int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
     int iFd = open(Request.at(1), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
 
     if (iFd < 0) {
-        throw std::string("ER-F-OP");
+        throw FileException("ER-F-OP");
     }
 
     OpenedFiles.push_back(iFd);

@@ -48,7 +48,7 @@ void ThreadsMan::CloseAllSSocks() {
     }
 }
 
-std::vector<std::thread> ThreadsMan::ThreadStash;
+// std::vector<std::thread> ThreadsMan::ThreadStash;
 std::condition_variable ThreadsMan::NeedMoreThreads;
 
 void ThreadsMan::ThreadCreated() { ThreadsCount += 1; }
@@ -67,6 +67,7 @@ void ThreadsMan::setActiveAndNotify() {
 
     NeedMoreThreads.notify_one();
 }
+
 void ThreadsMan::notActive() {
     ActiveThreads -= 1;
     ServerUtils::rowdy("A Threads is Deactived.");
@@ -93,8 +94,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
     //
     const int POLL_TIME_OUT{60000};
 
-    /**
-     *  Thread's main loop
+    /** Thread's main loop
      *  - handle client
      *  - clean up thread if needed
      * */
@@ -102,9 +102,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         std::function<void(const int)> TheCallback_PTR{nullptr};
         AcceptedSocket AcceptedSocket;
 
-        /**
-         * Run callbacks
-         * */
+        // Run callbacks
         try {
             AcceptedSocket = ServerUtils::PollEither(
                 (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
@@ -136,11 +134,9 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
                 // active stauts
                 ThreadsMan::notActive();
             }
-        } catch (const char *e) {
+        } catch (const std::exception &e) {
             // No data or Poll error
-
-            // For testing
-            // ServerUtils::buoy(std::string(e));
+            ServerUtils::rowdy("Accepting ends");
         }
 
         // Quit immediately if quiting.
@@ -148,14 +144,12 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
             break;
         }
 
-        /**
-         * Thread cleanup
-         * */
+        // Thread cleanup
         // FIXME:
         // try resume quiting
         if (bThreadQuitSwitch) {
             if (tryThreadQuitting()) {
-                ServerUtils::rowdy("Thread Quiting..");
+                ServerUtils::rowdy("Thread Quited");
                 break;
             }
         }
@@ -166,9 +160,9 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
         const int Tincr{T_incr};
 
         if (N > Tincr && N_Active < (N - Tincr - 1)) {
+            ServerUtils::rowdy("Initilize Thread Cleaning..");
             if (tryThreadQuitting()) {
-                // std::this_thread::sleep_for(std::chrono::seconds(20));
-                ServerUtils::rowdy("Initiate Quiting..");
+                ServerUtils::rowdy("Thread Quited");
                 break;
             }
         }
