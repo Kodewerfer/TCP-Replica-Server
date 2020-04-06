@@ -98,7 +98,7 @@ void PrintMessage(const int iSh, const int iFi) {
 
     if (ServerUtils::PeersAddrs.size() > 0) {
         ServerUtils::buoy(std::to_string(ServerUtils::PeersAddrs.size()) +
-                          " Peer(s) found. Running in Replica front-end mode.");
+                          " Peer(s) found. Running in Replica mode.");
     }
 }
 
@@ -185,8 +185,10 @@ void FileCallback(const int iServFD) {
     const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
     if (bSendSyncRequests) WelcomeMsg += "Running In Replica mode. \n";
 
-    // send welcome messages.
-    send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
+    /* send welcome messages.
+    no message if in replica mode */
+    if (!bSendSyncRequests)
+        send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
 
     // Main Loop
     int n{0};
@@ -542,8 +544,6 @@ void HandleSIGQUIT(int sig) {
     // close master sockets.
     std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
     for (auto i : Socks) {
-        // close(i);
-        shutdown(i, SHUT_RD);
         close(i);
     }
     // set the flag
@@ -568,8 +568,6 @@ void HandleSIGHUP(int sig) {
     // close master sockets.
     std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
     for (auto i : Socks) {
-        // close(i);
-        shutdown(i, SHUT_RD);
         close(i);
     }
 
