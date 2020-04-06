@@ -66,7 +66,8 @@ class FileClient {
     int FOPEN(std::vector<char *> Request, int &outPreviousFileFD);
     int FSEEK(std::vector<char *> Request);
     /* Return the file's content in the out parameter */
-    int FREAD(std::vector<char *> Request, std::string &outRedContent);
+    int FREAD(std::vector<char *> Request, std::string &outRedContent,
+              bool RunCheckingOnly = false);
     int FWRITE(std::vector<char *> Request);
     int FCLOSE(std::vector<char *> Request);
     int SYNCSEEK(std::vector<char *> Request);

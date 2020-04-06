@@ -123,7 +123,8 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     return res;
 }
 
-int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
+int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent,
+                      bool CheckOnly) {
     int res{0};
     if (Request.size() < 3) {
         return PARAM_PARS;
@@ -132,6 +133,12 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent) {
     if (Req.params <= 0) {
         return PARAM_PARS;
     }
+
+    /*  For SYNCREAD Only.
+        Only run the checking part of this op,
+        so that the SyncRequestBuilder can operate normally.
+     */
+    if (CheckOnly) return 0;  // or it would be one of the negatives from above.
 
     // file access control
     std::string FileName = FdToName[Req.fd];

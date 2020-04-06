@@ -25,14 +25,12 @@ void SyncPoint::init(sockaddr_in PeerAddress) {
 std::string SyncPoint::SendAndRread(std::string request) {
     char buffer[256]{0};
 
-    if (!PeerSock <= 0 && !bIsDead) {
-        ServerUtils::rowdy("Sending Request to Peer...");
-        // send to the peer
-        send(PeerSock, request.c_str(), request.size(), 0);
-        // Poll response
-        const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 500};
-        Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
-    }
+    ServerUtils::rowdy("Sending Request to Peer...");
+    // send to the peer
+    send(PeerSock, request.c_str(), request.size(), 0);
+    // Poll response
+    const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 3500 : 500};
+    Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
 
     return std::string(buffer);
 }

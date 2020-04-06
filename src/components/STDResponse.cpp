@@ -1,14 +1,14 @@
 #include "STDResponse.hpp"
 
-STDResponse::STDResponse(int fd)
-    : ClientFd(fd),
-      ERROR_CODES({{"ERPIP", "Error Creating The Pipe"},
-                   {"ER-F-OP", "Error Opening The File"},
-                   {"ERSHL", "Shell Command Dose Not Exists"},
-                   {"ER-F-ACEDI", "File Access Control : Action Denied"},
-                   {"ER-SYNC", "Files Are Not In-Sync"},
-                   {"ER-SYNC-SOK", "Connection Socket Error"},
-                   {"ER-SYNC-CONN", "Connection To Peers Failed"}}) {}
+std::map<std::string, std::string> STDResponse::ERROR_CODES{
+    {"ERPIP", "Error Creating The Pipe"},
+    {"ER-F-OP", "Error Opening The File"},
+    {"ERSHL", "Shell Command Dose Not Exists"},
+    {"ER-SYNC", "Files Are Not In-Sync"},
+    {"ER-SYNC-SOK", "Connection Socket Error"},
+    {"ER-SYNC-CONN", "Connection To Peers Failed"}};
+
+STDResponse::STDResponse(const int fd) : ClientFd(fd) {}
 
 void STDResponse::sendPayload(std::string &Content) {
     Content += "\n";
@@ -27,7 +27,6 @@ void STDResponse::file(int code, std::string message) {
 
     // code
     if (bIsSuccess) Payload += std::to_string(code) + " ";
-    // if (!bIsSuccess||) Payload += "ENOENT ";
     if (!bIsSuccess) Payload += "ENOENT ";
 
     // message
@@ -59,7 +58,6 @@ void STDResponse::fileInUse(int fd) {
     sendPayload(Payload);
 }
 
-// ERR or OK
 void STDResponse::shell(int code, std::string message) {
     std::string Payload = "";
     // stat
@@ -78,8 +76,6 @@ void STDResponse::shell(int code, std::string message) {
         Payload += message;
     else if (code == -3)
         Payload += "No Command Issued";
-    else if (code == 254)
-        Payload += "Program Cannot Be Found";
     else if (code != 0)
         Payload += "Non-zero Exit";
     else
@@ -90,7 +86,6 @@ void STDResponse::shell(int code, std::string message) {
     return;
 }
 
-// FAIL only
 void STDResponse::fail(std::string ServerCode) {
     std::string Payload = "FAIL " + ServerCode + " ";
 
@@ -99,4 +94,10 @@ void STDResponse::fail(std::string ServerCode) {
     sendPayload(Payload);
 
     return;
+}
+
+void STDResponse::syncFail() {
+    std::string Payload = "SYNC FAIL ";
+
+    sendPayload(Payload);
 }

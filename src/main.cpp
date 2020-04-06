@@ -101,8 +101,8 @@ void PrintMessage(const int iSh, const int iFi) {
     ServerUtils::buoy("File Server is listening on port. " +
                       std::to_string(iFi));
 
-    if (ServerUtils::PeersAddr.size() > 0) {
-        ServerUtils::buoy(std::to_string(ServerUtils::PeersAddr.size()) +
+    if (ServerUtils::PeersAddrs.size() > 0) {
+        ServerUtils::buoy(std::to_string(ServerUtils::PeersAddrs.size()) +
                           " Peer(s) found. Running in Replica front-end mode.");
     }
 }
@@ -131,31 +131,20 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &FromOpts,
 void DoShellCallback(const int iServFD) {
     const int ALEN = 256;
     char req[ALEN];
-    // send welcome message
+
     std::string WelcomeMsg = "\nShell Server Connected.\n";
 
     // NEW - Shell client limit
     // !! LOCKING !!
-    std::unique_lock<std::mutex> ShellLock(ServerUtils::ShellServerLock);
-    // if (!ShellLock.owns_lock()) {
-    //     WelcomeMsg =
-    //         "Shell Server has exceeded its limit, terminating session...";
-    // }
+    std::lock_guard<std::mutex> ShellServerGuard(ServerUtils::ShellServerLock);
 
+    // send the welcome message.
     send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
 
-    // Terminate the session if more than one user.
-    // if (!ShellLock.owns_lock()) {
-    //     close(iServFD);
-    //     shutdown(iServFD, 1);
-    //     ServerUtils::buoy("Shell client Blocked");
-    //     return;
-    // }
-
-    // Normal proceeding.
     ShellClient *NewClient = new ShellClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
+    // Main Loop
     int n{0};
     while (n = (Lib::readline(iServFD, req, ALEN - 1)) >= 0) {
         const std::string sRequest(req);
@@ -196,37 +185,12 @@ void DoFileCallback(const int iServFD) {
 
     std::string WelcomeMsg{"\nFile Server Connected. \n"};
 
-    std::vector<SyncPoint> PeersStash;
-
     FileClient *NewClient = new FileClient();
     STDResponse *NewRes = new STDResponse(iServFD);
 
     // if the server is syncing with other.
-    const bool bSendSyncRequests{ServerUtils::PeersAddr.size() > 0};
-
-    // establish peer links
-    int iDeadPeers{0};
-    if (bSendSyncRequests) {
-        WelcomeMsg += "Running In Replica mode. \n";
-
-        for (auto peer : ServerUtils::PeersAddr) {
-            SyncPoint SPoint;
-            try {
-                SPoint.init(peer);
-            } catch (const std::string &e) {
-                SPoint.isDead();
-                ++iDeadPeers;
-            }
-            // save it to the stash for use in handleSync.
-            PeersStash.push_back(SPoint);
-        }
-    }
-    if (bSendSyncRequests && iDeadPeers > 0) {
-        WelcomeMsg += "\nBe Advised: Cannot Connect to " +
-                      std::to_string(iDeadPeers) + " Peer(s)\n";
-        WelcomeMsg += "Actions Will Not Be In-Sync\n";
-        ServerUtils::rowdy(std::to_string(iDeadPeers) + " Peer(s) is dead");
-    }
+    const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
+    if (bSendSyncRequests) WelcomeMsg += "Running In Replica mode. \n";
 
     // send welcome messages.
     send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
@@ -256,29 +220,11 @@ void DoFileCallback(const int iServFD) {
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
                 iOPResult = NewClient->FSEEK(RequestTokenized);
-                // sync wouldn't run if local request reported error
-                if (bSendSyncRequests && iOPResult >= 0) {
-                    // Build the sync request
-                    std::string SyncRequest =
-                        NewClient->SyncRequestBuilder(RequestTokenized);
-                    // send the sync requests.
-                    SyncCallback =
-                        HandleSync(PeersStash, SyncRequest, "SYNCSEEK");
-                }
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
                 iOPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
-                // sync wouldn't run if local request reported error
-                if (bSendSyncRequests && iOPResult >= 0) {
-                    // Build the sync request
-                    std::string SyncRequest =
-                        NewClient->SyncRequestBuilder(RequestTokenized);
-                    // send the sync requests.
-                    SyncCallback =
-                        HandleSync(PeersStash, SyncRequest, "SYNCREAD");
-                }
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
@@ -290,8 +236,7 @@ void DoFileCallback(const int iServFD) {
                     std::string SyncRequest =
                         NewClient->SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback =
-                        HandleSync(PeersStash, SyncRequest, "SYNCWRITE");
+                    SyncCallback = HandleSync(SyncRequest, "SYNCWRITE");
                 }
             }
             // FCLOSE
@@ -345,21 +290,44 @@ void DoFileCallback(const int iServFD) {
 }
 
 std::function<bool(const int &, const std::string &Message)> HandleSync(
-    std::vector<SyncPoint> &PeersStash, const std::string &request,
-    const std::string ReqType) {
+    const std::string &request, const std::string ReqType) {
+    //
     typedef std::future<std::string> PeerFuture;
 
     std::vector<PeerFuture> PSTash;
     std::vector<std::string> ResStash;
 
     // Sync With Peers
-    for (auto &Peer : PeersStash) {
-        PeerFuture GetFromPeer =
-            std::async([&]() { return Peer.SendAndRread(request); });
+    for (auto PeerAddress : ServerUtils::PeersAddrs) {
+        PeerFuture SyncResult = std::async([&]() {
+            char buffer[256]{0};
 
-        PSTash.push_back(std::move(GetFromPeer));
+            ServerUtils::rowdy("Connecting To Peer...");
+            // create socket to peer
+            int PeerSock{0};
+            if ((PeerSock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+                return std::string("ER-SYNC-SOC");
+            }
+            // make connection
+            if (connect(PeerSock, (struct sockaddr *)&PeerAddress,
+                        sizeof(PeerAddress)) < 0) {
+                return std::string("ER-SYNC-CONN");
+            }
+
+            ServerUtils::rowdy("Sending Request to Peer...");
+            // send to the peer
+            send(PeerSock, request.c_str(), request.size(), 0);
+            // Poll response
+            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 30000 : 5000};
+            Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
+
+            return std::string(buffer);
+        });  // end of async
+        PSTash.push_back(std::move(SyncResult));
     }
     // Get results all in one.
+    /* unable to use range based for because the copy constructor for
+    furture is deleted. */
     for (int i = 0; i < PSTash.size(); i++) {
         std::string res = PSTash.at(i).get();
 
@@ -514,7 +482,7 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
                     }
 
                     if (err == 0) {
-                        ServerUtils::PeersAddr.push_back(serv_addr);
+                        ServerUtils::PeersAddrs.push_back(serv_addr);
                     }
                 }
 

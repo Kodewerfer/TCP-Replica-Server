@@ -48,8 +48,9 @@ class ServerUtils {
     static std::mutex ShellServerLock;
 
     static ServerPorts PortsReference;
-    static std::vector<sockaddr_in> PeersAddr;
+    static std::vector<sockaddr_in> PeersAddrs;
 
+   public:
     /**
      * Dynamci reconfig
      *   */

@@ -15,15 +15,23 @@
 class STDResponse {
    private:
     // SERVER ERROR CODE
-    std::map<std::string, std::string> ERROR_CODES;
-    int ClientFd;
-    void sendPayload(std::string&);
+    static std::map<std::string, std::string> ERROR_CODES;
+
+   private:
+    const int ClientFd;
+    // send function
+    void sendPayload(std::string &);
 
    public:
-    STDResponse(int fd);
+    STDResponse(const int fd);
+    // For file err or ok
     void file(int code, std::string messages = " ");
+    // only if file was opened.
     void fileInUse(int fd);
-    // void file(std::messages);
+    // For shell ok or err
     void shell(int, std::string message = " ");
+    // Failed only, used in catch
     void fail(std::string ServerCode);
+    // Sync fail special, called alone.
+    void syncFail();
 };

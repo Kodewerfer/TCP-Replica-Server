@@ -9,7 +9,7 @@ bool ServerUtils::bIsDebugging{false};
 bool ServerUtils::bIsNoisy{false};
 std::mutex ServerUtils::ShellServerLock;
 
-std::vector<sockaddr_in> ServerUtils::PeersAddr;
+std::vector<sockaddr_in> ServerUtils::PeersAddrs;
 
 bool ServerUtils::trySighupFlag() {
     if (bSIGHUPReceived) {

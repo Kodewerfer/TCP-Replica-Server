@@ -50,8 +50,7 @@ void DoShellCallback(const int);
 void DoFileCallback(const int);
 // repilica handler
 std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
-    std::vector<SyncPoint> &PeersStash, const std::string &SyncRequest,
-    const std::string RequestType);
+    const std::string &SyncRequest, const std::string RequestType);
 /**
  *  Misc
  * */
