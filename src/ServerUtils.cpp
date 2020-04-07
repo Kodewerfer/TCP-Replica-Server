@@ -20,9 +20,11 @@ bool ServerUtils::trySighupFlag() {
     return false;
 }
 
-void ServerUtils::setSocketsRef(ServerSockets &ref) { SocketReference = ref; };
-std::array<int, 2> ServerUtils::getSocketsRefList() {
-    return std::array<int, 2>{SocketReference.file, SocketReference.shell};
+void ServerUtils::setSocketsRef(ServerSockets ref) {
+    SocketReference = {ref.shell, ref.file};
+};
+ServerSockets ServerUtils::getSocketsRefList() {
+    return {SocketReference.shell, SocketReference.file};
 }
 
 int ServerUtils::CreateSocket(const unsigned short port,
@@ -35,7 +37,8 @@ int ServerUtils::CreateSocket(const unsigned short port,
         throw ServerException("Socket Creation Error.");
         return -1;
     }
-    if (setsockopt(iSocketFD, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt,
+    if (setsockopt(iSocketFD, SOL_SOCKET,
+                   SO_REUSEADDR | SO_REUSEPORT | SO_BROADCAST, &opt,
                    sizeof(opt))) {
         close(iSocketFD);
         throw ServerException("Setsockopt Error.");
@@ -87,8 +90,6 @@ AcceptedSocket ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
     if (polled == 0) throw AcceptingException("NO DATA");
     if (polled == -1) throw AcceptingException("Poll Error");
 
-    // return recv(sd, buf, max, 0);
-
     int ActiveFD{-2};
 
     if (PollFromSocks[0].revents & POLLIN) {
@@ -97,7 +98,7 @@ AcceptedSocket ServerUtils::PollEither(int *fds, int count, sockaddr *addr,
         ActiveFD = PollFromSocks[1].fd;
     }
 
-    if (ActiveFD == -2) throw "IMPOSB";
+    if (ActiveFD == -2) throw AcceptingException("NOMATCH");
 
     accpeted.accepted = ActiveFD;
     accpeted.newsocket = accept(ActiveFD, addr, addrlen);

@@ -39,6 +39,7 @@ struct AccessCtl {
     std::condition_variable WaitToClose;
 };
 
+typedef std::vector<char *> RequestTokens;
 class FileClient {
    private:
     // fds for all files opened by all users.
@@ -56,7 +57,7 @@ class FileClient {
     static void endReadingAndNotify(AccessCtl &);
     // Stored FDs
     // Turn fd and param(if apply) to int.
-    LastRequest PreprocessReq(std::vector<char *> Request);
+    LastRequest PreprocessReq(const RequestTokens &Request);
     // Check if the fs is valid. if it has been opened.
     int FDChcker(int fd);
 
@@ -64,18 +65,18 @@ class FileClient {
     static void CleanUp();
     /* if the file has been opened by other users, return the fd in the out
      parameter. */
-    int FOPEN(std::vector<char *> Request, int &outPreviousFileFD);
-    int FSEEK(std::vector<char *> Request);
+    int FOPEN(const RequestTokens &Request, int &outPreviousFileFD);
+    int FSEEK(const RequestTokens &Request);
     /* Return the file's content in the out parameter */
-    int FREAD(std::vector<char *> Request, std::string &outRedContent,
+    int FREAD(const RequestTokens &Request, std::string &outRedContent,
               bool RunCheckingOnly = false);
-    int FWRITE(std::vector<char *> Request);
-    int FCLOSE(std::vector<char *> Request);
-    int SYNCSEEK(std::vector<char *> Request);
-    int SYNCREAD(std::vector<char *> Request, std::string &outRedContent);
-    int SYNCWRITE(std::vector<char *> Request);
-    int SYNCCLOSE(std::vector<char *> Request);
+    int FWRITE(const RequestTokens &Request);
+    int FCLOSE(const RequestTokens &Request);
+    int SYNCSEEK(const RequestTokens &Request);
+    int SYNCREAD(const RequestTokens &Request, std::string &outRedContent);
+    int SYNCWRITE(const RequestTokens &Request);
+    int SYNCCLOSE(const RequestTokens &Request);
     // Helper functions
-    std::string SyncRequestBuilder(std::vector<char *> Request);
+    std::string SyncRequestBuilder(const RequestTokens &Request);
     ~FileClient();
 };

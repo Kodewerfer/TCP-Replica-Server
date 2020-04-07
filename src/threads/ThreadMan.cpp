@@ -104,6 +104,14 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
 
         // Run callbacks
         try {
+            // try resume quiting
+            if (bThreadQuitSwitch) {
+                if (tryThreadQuitting()) {
+                    ServerUtils::rowdy("Thread Quited");
+                    break;
+                }
+            }
+
             AcceptedSocket = ServerUtils::PollEither(
                 (int *)iSockets, 2, (sockaddr *)&ClientAddrSTR,
                 (socklen_t *)&iClientAddrLen,
@@ -146,13 +154,6 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
 
         // Thread cleanup
         // FIXME:
-        // try resume quiting
-        if (bThreadQuitSwitch) {
-            if (tryThreadQuitting()) {
-                ServerUtils::rowdy("Thread Quited");
-                break;
-            }
-        }
 
         // try to initilize the clean up
         const int N{ThreadsMan::getThreadsCount()};

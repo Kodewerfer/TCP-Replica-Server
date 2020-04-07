@@ -33,7 +33,7 @@ void FileClient::CleanUp() {
     return;
 }
 
-LastRequest FileClient::PreprocessReq(std::vector<char *> Request) {
+LastRequest FileClient::PreprocessReq(const RequestTokens &Request) {
     char *id{Request.at(1)};
     int fd = atoi(id);
 
@@ -56,12 +56,12 @@ int FileClient::FDChcker(int fd) {
     return 0;
 }
 
-int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
+int FileClient::FOPEN(const RequestTokens &Request, int &outPreviousFileFD) {
     if (Request.size() < 2) {
         return PARAM_PARS;
     }
 
-    std::string FileName = std::string(Request.at(1));
+    std::string FileName{Request.at(1)};
 
     // access control
     int FdRef = NameToFd[FileName];
@@ -88,7 +88,7 @@ int FileClient::FOPEN(std::vector<char *> Request, int &outPreviousFileFD) {
     return iFd;
 }
 
-int FileClient::FSEEK(std::vector<char *> Request) {
+int FileClient::FSEEK(const RequestTokens &Request) {
     int res{0};
     if (Request.size() < 3) {
         return PARAM_PARS;
@@ -123,7 +123,7 @@ int FileClient::FSEEK(std::vector<char *> Request) {
     return res;
 }
 
-int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent,
+int FileClient::FREAD(const RequestTokens &Request, std::string &outRedContent,
                       bool CheckOnly) {
     int res{0};
     if (Request.size() < 3) {
@@ -186,7 +186,7 @@ int FileClient::FREAD(std::vector<char *> Request, std::string &outRedContent,
     return res;
 }
 
-int FileClient::FWRITE(std::vector<char *> Request) {
+int FileClient::FWRITE(const RequestTokens &Request) {
     int res{0};
     if (Request.size() < 3) {
         return PARAM_PARS;
@@ -239,7 +239,7 @@ int FileClient::FWRITE(std::vector<char *> Request) {
     return res;
 }
 
-int FileClient::FCLOSE(std::vector<char *> Request) {
+int FileClient::FCLOSE(const RequestTokens &Request) {
     int res{0};
     if (Request.size() < 2) {
         return PARAM_PARS;
@@ -284,26 +284,26 @@ int FileClient::FCLOSE(std::vector<char *> Request) {
 
     // remove fd ref.
     FdToName.erase(fd);
+    FILE_ACCESS.erase(FileName);
+
     // close fd, release the resource
     close(fd);
-
-    FILE_ACCESS.erase(FileName);
 
     return res;
 }
 
 // Sync requests
 
-int FileClient::SYNCSEEK(std::vector<char *> Request) {
+int FileClient::SYNCSEEK(const RequestTokens &Request) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
-    if (fd == 0) {
+    if (fd < 1) {
         int outTemp;
         FOPEN(Request, outTemp);
     }
     // rebuild the request
-    std::vector<char *> NewRequest;
+    RequestTokens NewRequest;
     NewRequest.push_back((char *)"FSEEK");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
@@ -312,18 +312,18 @@ int FileClient::SYNCSEEK(std::vector<char *> Request) {
     return FSEEK(NewRequest);
 }
 
-int FileClient::SYNCREAD(std::vector<char *> Request,
+int FileClient::SYNCREAD(const RequestTokens &Request,
                          std::string &outRedContent) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
-    if (fd == 0) {
+    if (fd < 1) {
         int outTemp;
         FOPEN(Request, outTemp);
     }
     // rebuild the request
-    std::vector<char *> NewRequest;
-    NewRequest.push_back((char *)"FWRITE");
+    RequestTokens NewRequest;
+    NewRequest.push_back((char *)"FREAD");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
 
@@ -331,47 +331,40 @@ int FileClient::SYNCREAD(std::vector<char *> Request,
     return FREAD(NewRequest, outRedContent);
 }
 
-int FileClient::SYNCWRITE(std::vector<char *> Request) {
+int FileClient::SYNCWRITE(const RequestTokens &Request) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
-    if (fd == 0) {
+    if (fd < 1) {
         int outTemp;
         FOPEN(Request, outTemp);
         // fd = NameToFd[Request.at(1)];
     }
 
-    std::vector<char *> NewRequest;
+    RequestTokens NewRequest;
     NewRequest.push_back((char *)"FWRITE");
     NewRequest.push_back((char *)std::to_string(fd).c_str());
     NewRequest.push_back(Request.at(2));
 
     return FWRITE(NewRequest);
-
-    // write to the file the content
 }
 
-int FileClient::SYNCCLOSE(std::vector<char *> Request) {
+int FileClient::SYNCCLOSE(const RequestTokens &Request) {
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
-    if (fd == 0) {
-        int outTemp;
-        FOPEN(Request, outTemp);
-        // fd = NameToFd[Request.at(1)];
+    if (fd < 1) {
+        return 0;
     }
 
-    // std::vector<char *> NewRequest;
-    // NewRequest.push_back((char *)"FWRITE");
-    // NewRequest.push_back((char *)std::to_string(fd).c_str());
-    // NewRequest.push_back(Request.at(2));
+    RequestTokens NewRequest;
+    NewRequest.push_back((char *)"FCLOSE");
+    NewRequest.push_back((char *)std::to_string(fd).c_str());
 
-    // return FWRITE(NewRequest);
-
-    // write to the file the content
+    return FCLOSE(NewRequest);
 }
 
-std::string FileClient::SyncRequestBuilder(std::vector<char *> Request) {
+std::string FileClient::SyncRequestBuilder(const RequestTokens &Request) {
     std::string sRequest{""};
     // request head
     std::string OriginalHead(Request.at(0));

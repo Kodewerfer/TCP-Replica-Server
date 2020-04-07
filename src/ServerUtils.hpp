@@ -63,9 +63,9 @@ class ServerUtils {
     /**
      * Store a reference to opened socket for signal handling
      *  */
-    static void setSocketsRef(ServerSockets &ref);
+    static void setSocketsRef(ServerSockets ref);
     static ServerSockets &getSocketsRef() { return SocketReference; }
-    static std::array<int, 2> getSocketsRefList();
+    static ServerSockets getSocketsRefList();
 
     /**
      * Helper function, contains the common code for passivesocket and

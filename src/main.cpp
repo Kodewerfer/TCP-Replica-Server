@@ -134,8 +134,8 @@ void ShellCallback(const int iServFD) {
     // send the welcome message.
     send(iServFD, WelcomeMsg.c_str(), WelcomeMsg.size(), 0);
 
-    ShellClient *NewClient = new ShellClient();
-    ServerResponse *NewRes = new ServerResponse(iServFD);
+    ShellClient NewClient;
+    ServerResponse NewRes{iServFD};
 
     // Main Loop
     int n{0};
@@ -144,32 +144,29 @@ void ShellCallback(const int iServFD) {
         std::vector<char *> RequestTokenized = Lib::Tokenize(sRequest);
 
         if (strcmp(RequestTokenized.at(0), "CPRINT") == 0) {
-            std::string &LastOutput = NewClient->GetLastOutput();
+            std::string &LastOutput = NewClient.GetLastOutput();
             if (LastOutput == "MARK-NO-COMMAND") {
-                NewRes->shell(-3);
+                NewRes.shell(-3);
                 continue;
             }
             send(iServFD, LastOutput.c_str(), LastOutput.size(), 0);
-            NewRes->shell(0);
+            NewRes.shell(0);
             continue;
         }
         int ShellRes;
         try {
-            ShellRes = NewClient->RunShellCommand(RequestTokenized);
+            ShellRes = NewClient.RunShellCommand(RequestTokenized);
             if (ShellRes == 254) {
                 throw ShellException("ERSHL");
             }
-            NewRes->shell(ShellRes);
+            NewRes.shell(ShellRes);
         } catch (const std::exception &e) {
-            NewRes->fail(e.what());
+            NewRes.fail(e.what());
             ServerUtils::buoy(e.what());
         }
     }  // core client loop ends
 
     ServerUtils::buoy("Connection closed: Shell Client.");
-
-    delete NewClient;
-    delete NewRes;
 }
 
 void FileCallback(const int iServFD) {
@@ -178,8 +175,8 @@ void FileCallback(const int iServFD) {
 
     std::string WelcomeMsg{"\nFile Server Connected. \n"};
 
-    FileClient *NewClient = new FileClient();
-    ServerResponse *NewRes = new ServerResponse(iServFD);
+    FileClient NewClient;
+    ServerResponse NewRes{iServFD};
 
     // if the server is syncing with other.
     const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
@@ -210,48 +207,52 @@ void FileCallback(const int iServFD) {
             // FOPEN
             int iPreviousFd{-1};
             if (strcmp(TheCommand, "FOPEN") == 0) {
-                iOPResult = NewClient->FOPEN(RequestTokenized, iPreviousFd);
+                iOPResult = NewClient.FOPEN(RequestTokenized, iPreviousFd);
             }
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
-                iOPResult = NewClient->FSEEK(RequestTokenized);
+                iOPResult = NewClient.FSEEK(RequestTokenized);
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
-                iOPResult = NewClient->FREAD(RequestTokenized, ResponseMessage);
+                iOPResult = NewClient.FREAD(RequestTokenized, ResponseMessage);
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
                 // local request
-                iOPResult = NewClient->FWRITE(RequestTokenized);
+                iOPResult = NewClient.FWRITE(RequestTokenized);
                 // sync wouldn't run if local request reported error
                 if (bSendSyncRequests && iOPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
-                        NewClient->SyncRequestBuilder(RequestTokenized);
+                        NewClient.SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
                     SyncCallback = HandleSync(SyncRequest, "SYNCWRITE");
                 }
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
-                iOPResult = NewClient->FCLOSE(RequestTokenized);
+                iOPResult = NewClient.FCLOSE(RequestTokenized);
             }
 
             /**
              * Handle Sync Requests
              * Server to Server
              * */
-            if (strcmp(TheCommand, "SYNCWRITE") == 0) {
-                iOPResult = NewClient->SYNCWRITE(RequestTokenized);
+            if (strcmp(TheCommand, "SYNCSEEK") == 0) {
+                iOPResult = NewClient.SYNCSEEK(RequestTokenized);
             }
+
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
                 iOPResult =
-                    NewClient->SYNCREAD(RequestTokenized, ResponseMessage);
+                    NewClient.SYNCREAD(RequestTokenized, ResponseMessage);
             }
-            if (strcmp(TheCommand, "SYNCSEEK") == 0) {
-                iOPResult = NewClient->SYNCSEEK(RequestTokenized);
+            if (strcmp(TheCommand, "SYNCWRITE") == 0) {
+                iOPResult = NewClient.SYNCWRITE(RequestTokenized);
+            }
+            if (strcmp(TheCommand, "SYNCCLOSE") == 0) {
+                iOPResult = NewClient.SYNCCLOSE(RequestTokenized);
             }
 
             /**
@@ -261,26 +262,23 @@ void FileCallback(const int iServFD) {
                 // origin of the sync requests.
                 // pass on the result from local operation.
                 if (SyncCallback(iOPResult, ResponseMessage)) {
-                    NewRes->file(iOPResult, ResponseMessage);
+                    NewRes.file(iOPResult, ResponseMessage);
                 } else {
                     throw SyncException("ER-SYNC");
                 }
             } else if (iPreviousFd > 0) {
-                NewRes->fileInUse(iPreviousFd);
+                NewRes.fileInUse(iPreviousFd);
             } else {
                 // Normal operations
-                NewRes->file(iOPResult, ResponseMessage);
+                NewRes.file(iOPResult, ResponseMessage);
             }
         } catch (const FileException &e) {
             // Failed.
-            NewRes->fail(e.what());
+            NewRes.fail(e.what());
         }
     }  // core client loop ends
 
     ServerUtils::buoy("Connection closed: Flie Client");
-
-    delete NewClient;
-    delete NewRes;
 }
 
 std::function<bool(const int &, const std::string &Message)> HandleSync(
@@ -314,6 +312,10 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
             // Poll response
             const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 30000 : 5000};
             Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
+
+            // close the connection
+            shutdown(PeerSock, SHUT_RDWR);
+            close(PeerSock);
 
             return std::string(buffer);
         });  // end of async
@@ -369,29 +371,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
 
     if (ReqType == "SYNCSEEK") {
         return [ResStash](const int &OPResult, const std::string &Message) {
-            int Vote{0};
-            const int Total{(const int)ResStash.size()};
-            //
-            for (const std::string res : ResStash) {
-                auto Tokenized = Lib::TokenizeDeluxe(res);
-                if (Tokenized.size() < 2) {
-                    continue;
-                }
-                int peerRead;
-                try {
-                    peerRead = {std::stoi(Tokenized.at(1))};
-                } catch (const std::exception &e) {
-                    ServerUtils::buoy(e.what());
-                    continue;
-                }
-                // read bits must be the same
-                if (peerRead == OPResult) {
-                    ++Vote;
-                }
-            }
-
-            if (Vote == Total || Vote > (Total / 2)) return true;
-            return false;
+            return true;
         };
     }
 
@@ -514,7 +494,7 @@ void daemonize() {
     if (setsid() < 0) exit(EXIT_FAILURE);
 
     signal(SIGCHLD, SIG_IGN);
-    signal(SIGHUP, SIG_IGN);
+    // signal(SIGHUP, SIG_IGN);
 
     /* Fork off for the second time*/
     pid = fork();
@@ -541,18 +521,23 @@ void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
     ServerUtils::buoy("Server Quiting... ");
 
-    // close master sockets.
-    std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
-    for (auto i : Socks) {
-        close(i);
-    }
     // set the flag
     ThreadsMan::KillIdleThreads();
+
+    // close master sockets.
+    ServerSockets Socks = ServerUtils::getSocketsRefList();
+
+    shutdown(Socks.shell, SHUT_RD);
+    close(Socks.shell);
+
+    shutdown(Socks.file, SHUT_RD);
+    close(Socks.file);
 
     // Kill all on going connections.
     ThreadsMan::CloseAllSSocks();
 
     FileClient::CleanUp();
+
     std::this_thread::sleep_for(std::chrono::seconds(1));
     // QUIT
     _Exit(EXIT_SUCCESS);
@@ -566,19 +551,23 @@ void HandleSIGHUP(int sig) {
     ThreadsMan::KillIdleThreads();
 
     // close master sockets.
-    std::array<int, 2> Socks = ServerUtils::getSocketsRefList();
-    for (auto i : Socks) {
-        close(i);
-    }
+    ServerSockets Socks = ServerUtils::getSocketsRefList();
+
+    shutdown(Socks.shell, SHUT_RD);
+    close(Socks.shell);
+
+    shutdown(Socks.file, SHUT_RD);
+    close(Socks.file);
 
     // Kill all on going connections.
     ThreadsMan::CloseAllSSocks();
+
+    FileClient::CleanUp();
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // clean up operations
     ThreadsMan::RestThreadsCounters();
-    FileClient::CleanUp();
 
     ThreadsMan::StopKillIdles();
     StartServer();
