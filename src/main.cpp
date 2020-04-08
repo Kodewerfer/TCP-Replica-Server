@@ -180,7 +180,8 @@ void FileCallback(const int iServFD) {
 
     // if the server is syncing with other.
     const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
-    if (bSendSyncRequests) WelcomeMsg += "Running In Replica mode. \n";
+    if (bSendSyncRequests)
+        WelcomeMsg += "Running In Replica mode. \n";
 
     /* send welcome messages.
     no message if in replica mode */
@@ -197,7 +198,8 @@ void FileCallback(const int iServFD) {
 
         // Important parameters
         int iOPResult{NO_VALID_COM};
-        std::string ResponseMessage{" "};
+        // content read by FREAD, can be empty.
+        std::string FromFREAD{" "};
         std::function<bool(const int &, const std::string &)> SyncCallback;
         //
         try {
@@ -212,11 +214,29 @@ void FileCallback(const int iServFD) {
             // FSEEK
             if (strcmp(TheCommand, "FSEEK") == 0) {
                 iOPResult = NewClient.FSEEK(RequestTokenized);
+                // sync wouldn't run if local request reported error
+                if (bSendSyncRequests && iOPResult >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient.SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest);
+                }
             }
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
-                iOPResult = NewClient.FREAD(RequestTokenized, ResponseMessage);
+                iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD, true);
+                // sync wouldn't run if local request reported error
+                if (bSendSyncRequests && iOPResult >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient.SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest, "SEMI");
+                }
+                // actual local running.
+                iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD);
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
@@ -228,11 +248,22 @@ void FileCallback(const int iServFD) {
                     std::string SyncRequest =
                         NewClient.SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback = HandleSync(SyncRequest, "SYNCWRITE");
+                    SyncCallback = HandleSync(SyncRequest);
                 }
             }
             // FCLOSE
             if (strcmp(TheCommand, "FCLOSE") == 0) {
+                // run checking first.
+                iOPResult = NewClient.FCLOSE(RequestTokenized, true);
+                // sync wouldn't run if local request reported error
+                if (bSendSyncRequests && iOPResult >= 0) {
+                    // Build the sync request
+                    std::string SyncRequest =
+                        NewClient.SyncRequestBuilder(RequestTokenized);
+                    // send the sync requests.
+                    SyncCallback = HandleSync(SyncRequest);
+                }
+                // actual local running.
                 iOPResult = NewClient.FCLOSE(RequestTokenized);
             }
 
@@ -246,7 +277,7 @@ void FileCallback(const int iServFD) {
 
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
                 iOPResult =
-                    NewClient.SYNCREAD(RequestTokenized, ResponseMessage);
+                    NewClient.SYNCREAD(RequestTokenized, FromFREAD);
             }
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
                 iOPResult = NewClient.SYNCWRITE(RequestTokenized);
@@ -261,8 +292,8 @@ void FileCallback(const int iServFD) {
             if (bSendSyncRequests && SyncCallback != nullptr) {
                 // origin of the sync requests.
                 // pass on the result from local operation.
-                if (SyncCallback(iOPResult, ResponseMessage)) {
-                    NewRes.file(iOPResult, ResponseMessage);
+                if (SyncCallback(iOPResult, FromFREAD)) {
+                    NewRes.file(iOPResult, FromFREAD);
                 } else {
                     throw SyncException("ER-SYNC");
                 }
@@ -270,11 +301,14 @@ void FileCallback(const int iServFD) {
                 NewRes.fileInUse(iPreviousFd);
             } else {
                 // Normal operations
-                NewRes.file(iOPResult, ResponseMessage);
+                NewRes.file(iOPResult, FromFREAD);
             }
         } catch (const FileException &e) {
             // Failed.
             NewRes.fail(e.what());
+        } catch (const SyncException &e) {
+            // Failed.
+            NewRes.syncFail(e.what());
         }
     }  // core client loop ends
 
@@ -298,23 +332,34 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
             // create socket to peer
             int PeerSock{0};
             if ((PeerSock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+                close(PeerSock);
                 return std::string("ER-SYNC-SOC");
             }
             // make connection
             if (connect(PeerSock, (struct sockaddr *)&PeerAddress,
                         sizeof(PeerAddress)) < 0) {
+                close(PeerSock);
                 return std::string("ER-SYNC-CONN");
             }
 
             ServerUtils::rowdy("Sending Request to Peer...");
             // send to the peer
             send(PeerSock, request.c_str(), request.size(), 0);
+            shutdown(PeerSock, SHUT_WR);
             // Poll response
-            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 30000 : 5000};
-            Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
+            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 30000 : 10000};
+            int n = Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
 
+            if (n <= 0) {
+                if (n == 0)
+                    ServerUtils::rowdy("Peer No data, shutting connection...");
+                if (n < 0)
+                    ServerUtils::rowdy("Peer timed out, shutting connection...");
+            } else {
+                ServerUtils::rowdy("Done, shutting connection...");
+            }
             // close the connection
-            shutdown(PeerSock, SHUT_RDWR);
+            // shutdown(PeerSock, SHUT_RD);
             close(PeerSock);
 
             return std::string(buffer);
@@ -324,54 +369,64 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     // Get results all in one.
     /* unable to use range based for because the copy constructor for
     furture is deleted. */
-    for (int i = 0; i < PSTash.size(); i++) {
-        std::string res = PSTash.at(i).get();
+    if (ReqType == "SEMI") {
+        for (int i = 0; i < PSTash.size(); i++) {
+            std::string res = PSTash.at(i).get();
 
-        // Filter out errors
-        if (res.substr(0, 3) == "ER-") {
-            // throw res;
+            ResStash.push_back(res);
         }
-
-        ResStash.push_back(res);
     }
 
-    if (ReqType == "SYNCWRITE") {
+    /* Callback returns */
+
+    // fire and forget, for one-phase commits.
+    if (ReqType == "FF") {
         return [ResStash](const int &OPResult, const std::string &Message) {
             return true;
         };
     }
 
-    if (ReqType == "SYNCREAD") {
+    // involves checking the result.
+    if (ReqType == "SEMI") {
         return [ResStash](const int &OPResult, const std::string &Message) {
-            int Vote{0};
-            const int Total{(const int)ResStash.size()};
+            int Vote{OPResult >= 0 ? 1 : 0};
+            const int PeersNumber{(const int)ResStash.size()};
+            const int Total{OPResult >= 0 ? PeersNumber + 1 : PeersNumber};
             //
             for (const std::string res : ResStash) {
-                auto Tokenized = Lib::TokenizeDeluxe(res);
-                if (Tokenized.size() < 2) {
+                // if connection error or timed out
+                if (!res.size() || res.substr(0, 3) == "ER-") {
+                    // throw SyncException(res);
                     continue;
                 }
-                int peerRead;
+                // break down the response.
+                auto Tokenized = Lib::TokenizeDeluxe(res);
+
+                if (Tokenized.size() < 3) {
+                    continue;
+                }
+
+                int iPeerBytesRead;
+
                 try {
-                    peerRead = {std::stoi(Tokenized.at(1))};
+                    iPeerBytesRead = {std::stoi(Tokenized.at(1))};
                 } catch (const std::exception &e) {
                     ServerUtils::buoy(e.what());
                     continue;
                 }
                 // read bits and content must be the same.
-                if (peerRead == OPResult && Message == Tokenized.at(2)) {
+                // if (iPeerBytesRead == OPResult && Message == Tokenized.at(2)) {
+                //     ++Vote;
+                // }
+
+                if (iPeerBytesRead >= 0) {
                     ++Vote;
                 }
             }
 
-            if (Vote == Total || Vote > (Total / 2)) return true;
+            if (Vote == Total || Vote > (Total / 2))
+                return true;
             return false;
-        };
-    }
-
-    if (ReqType == "SYNCSEEK") {
-        return [ResStash](const int &OPResult, const std::string &Message) {
-            return true;
         };
     }
 
@@ -393,28 +448,32 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
             case 's': {
                 // shell port
                 int temp = atoi(optarg);
-                if (temp > 0) iShPort = temp;
+                if (temp > 0)
+                    iShPort = temp;
 
                 break;
             }
             case 'f': {
                 // file port
                 int temp = atoi(optarg);
-                if (temp > 0) iFiPort = temp;
+                if (temp > 0)
+                    iFiPort = temp;
 
                 break;
             }
             case 't': {
                 // t incr
                 int temp = atoi(optarg);
-                if (temp > 0) iThreadIncr = temp;
+                if (temp > 0)
+                    iThreadIncr = temp;
 
                 break;
             }
             case 'T': {
                 // t max
                 int temp = atoi(optarg);
-                if (temp > 0) iThreadMax = temp;
+                if (temp > 0)
+                    iThreadMax = temp;
 
                 break;
             }
@@ -487,11 +546,14 @@ void daemonize() {
     /* Fork off the parent process */
     pid = fork();
 
-    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid < 0)
+        exit(EXIT_FAILURE);
 
-    if (pid > 0) exit(EXIT_SUCCESS);
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
 
-    if (setsid() < 0) exit(EXIT_FAILURE);
+    if (setsid() < 0)
+        exit(EXIT_FAILURE);
 
     signal(SIGCHLD, SIG_IGN);
     // signal(SIGHUP, SIG_IGN);
@@ -499,9 +561,11 @@ void daemonize() {
     /* Fork off for the second time*/
     pid = fork();
 
-    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid < 0)
+        exit(EXIT_FAILURE);
 
-    if (pid > 0) exit(EXIT_SUCCESS);
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
 
     // file permission
     umask(0);

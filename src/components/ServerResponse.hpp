@@ -26,13 +26,16 @@ class ServerResponse {
    public:
     ServerResponse(const int fd);
     // For file err or ok
-    void file(int code, std::string messages = " ");
+    void file(const int code, std::string messages = " ");
     // only if file was opened.
-    void fileInUse(int fd);
+    void fileInUse(const int fd);
     // For shell ok or err
-    void shell(int, std::string message = " ");
+    void shell(const int, std::string message = " ");
     // Failed only, used in catch
-    void fail(std::string ServerCode);
+    void fail(const std::string &ServerCode);
     // Sync fail special, called alone.
+     // ** unused for now **
     void syncFail();
+    // display failed reason   
+    void syncFail(const std::string &);
 };

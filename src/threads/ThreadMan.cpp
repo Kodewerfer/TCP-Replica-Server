@@ -144,7 +144,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
             }
         } catch (const std::exception &e) {
             // No data or Poll error
-            ServerUtils::rowdy("Accepting ends");
+            // ServerUtils::rowdy("Accepting ends");
         }
 
         // Quit immediately if quiting.

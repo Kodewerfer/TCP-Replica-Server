@@ -71,11 +71,15 @@ class FileClient {
     int FREAD(const RequestTokens &Request, std::string &outRedContent,
               bool RunCheckingOnly = false);
     int FWRITE(const RequestTokens &Request);
-    int FCLOSE(const RequestTokens &Request);
+    int FCLOSE(const RequestTokens &Request, bool RunCheckingOnly = false);
+
+    // SYNCs
+
     int SYNCSEEK(const RequestTokens &Request);
     int SYNCREAD(const RequestTokens &Request, std::string &outRedContent);
     int SYNCWRITE(const RequestTokens &Request);
     int SYNCCLOSE(const RequestTokens &Request);
+
     // Helper functions
     std::string SyncRequestBuilder(const RequestTokens &Request);
     ~FileClient();

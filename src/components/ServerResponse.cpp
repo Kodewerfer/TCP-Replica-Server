@@ -4,7 +4,7 @@ std::map<std::string, std::string> ServerResponse::ERROR_CODES{
     {"ERPIP", "Error Creating The Pipe"},
     {"ER-F-OP", "Error Opening The File"},
     {"ERSHL", "Shell Command Dose Not Exists"},
-    {"ER-SYNC", "Files Are Not In-Sync"},
+    {"ER-SYNC", "Sync Failed"},
     {"ER-SYNC-SOK", "Connection Socket Error"},
     {"ER-SYNC-CONN", "Connection To Peers Failed"}};
 
@@ -15,7 +15,7 @@ void ServerResponse::sendPayload(std::string &Content) {
     send(ClientFd, Content.c_str(), Content.size(), 0);
 }
 
-void ServerResponse::file(int code, std::string message) {
+void ServerResponse::file(const int code, std::string message) {
     bool bIsSuccess{code >= 0};
     std::string Payload = "";
 
@@ -50,7 +50,7 @@ void ServerResponse::file(int code, std::string message) {
     return;
 }
 
-void ServerResponse::fileInUse(int fd) {
+void ServerResponse::fileInUse(const int fd) {
     std::string Payload = "ERR ";
     Payload += std::to_string(fd) + " ";
     Payload += "This File Has Already Been Opened";
@@ -58,7 +58,7 @@ void ServerResponse::fileInUse(int fd) {
     sendPayload(Payload);
 }
 
-void ServerResponse::shell(int code, std::string message) {
+void ServerResponse::shell(const int code, std::string message) {
     std::string Payload = "";
     // stat
     if (code == 0) Payload += "OK ";
@@ -86,7 +86,7 @@ void ServerResponse::shell(int code, std::string message) {
     return;
 }
 
-void ServerResponse::fail(std::string ServerCode) {
+void ServerResponse::fail(const std::string &ServerCode) {
     std::string Payload = "FAIL " + ServerCode + " ";
 
     Payload += ERROR_CODES[ServerCode];
@@ -96,8 +96,14 @@ void ServerResponse::fail(std::string ServerCode) {
     return;
 }
 
+void ServerResponse::syncFail(const std::string &code) {
+    std::string Payload = "SYNC FAIL ";
+    std::string message = ERROR_CODES[code];
+    Payload += message;
+    sendPayload(Payload);
+}
+
 void ServerResponse::syncFail() {
     std::string Payload = "SYNC FAIL ";
-
     sendPayload(Payload);
 }

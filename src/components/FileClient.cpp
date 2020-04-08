@@ -50,9 +50,11 @@ int FileClient::FDChcker(int fd) {
     }
     bool bFound{false};
     for (auto ele : OpenedFiles) {
-        if (fd == ele) bFound = true;
+        if (fd == ele)
+            bFound = true;
     }
-    if (!bFound) return NO_SUCH_FILE;
+    if (!bFound)
+        return NO_SUCH_FILE;
     return 0;
 }
 
@@ -134,11 +136,18 @@ int FileClient::FREAD(const RequestTokens &Request, std::string &outRedContent,
         return PARAM_PARS;
     }
 
+    int FilterFlag{FDChcker(Req.fd)};
+    if (FilterFlag < 0) {
+        return FilterFlag;
+    }
+
     /*  For SYNCREAD Only.
         Only run the checking part of this op,
         so that the SyncRequestBuilder can operate normally.
      */
-    if (CheckOnly) return 0;  // or it would be one of the negatives from above.
+
+    if (CheckOnly)
+        return 1;  // or it would be one of the negatives from above.
 
     // file access control
     std::string FileName = FdToName[Req.fd];
@@ -152,7 +161,8 @@ int FileClient::FREAD(const RequestTokens &Request, std::string &outRedContent,
         return (Control.writing < 1 && !Control.bIsClosing);
     });
 
-    int FilterFlag{FDChcker(Req.fd)};
+    // the fd could have been changed while waiting on lock, check
+    FilterFlag = FDChcker(Req.fd);
     if (FilterFlag < 0) {
         return FilterFlag;
     }
@@ -239,7 +249,7 @@ int FileClient::FWRITE(const RequestTokens &Request) {
     return res;
 }
 
-int FileClient::FCLOSE(const RequestTokens &Request) {
+int FileClient::FCLOSE(const RequestTokens &Request, bool checkOnly) {
     int res{0};
     if (Request.size() < 2) {
         return PARAM_PARS;
@@ -247,6 +257,18 @@ int FileClient::FCLOSE(const RequestTokens &Request) {
 
     char *id{Request.at(1)};
     int fd = atoi(id);
+
+    int FilterFlag{FDChcker(fd)};
+    if (FilterFlag < 0) {
+        return FilterFlag;
+    }
+
+    /*  For SYNCREAD Only.
+        Only run the checking part of this op,
+        so that the SyncRequestBuilder can operate normally.
+     */
+    if (checkOnly)
+        return 1;
 
     // Access control
     std::string FileName = FdToName[fd];
@@ -262,7 +284,7 @@ int FileClient::FCLOSE(const RequestTokens &Request) {
 
     Control.bIsClosing = true;
 
-    int FilterFlag{FDChcker(fd)};
+    FilterFlag = FDChcker(fd);
     if (FilterFlag < 0) {
         return FilterFlag;
     }
@@ -295,6 +317,9 @@ int FileClient::FCLOSE(const RequestTokens &Request) {
 // Sync requests
 
 int FileClient::SYNCSEEK(const RequestTokens &Request) {
+    if (Request.size() < 3) {
+        return -1;
+    }
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
@@ -314,6 +339,9 @@ int FileClient::SYNCSEEK(const RequestTokens &Request) {
 
 int FileClient::SYNCREAD(const RequestTokens &Request,
                          std::string &outRedContent) {
+    if (Request.size() < 3) {
+        return -1;
+    }
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
@@ -332,6 +360,9 @@ int FileClient::SYNCREAD(const RequestTokens &Request,
 }
 
 int FileClient::SYNCWRITE(const RequestTokens &Request) {
+    if (Request.size() < 3) {
+        return -1;
+    }
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
@@ -350,6 +381,9 @@ int FileClient::SYNCWRITE(const RequestTokens &Request) {
 }
 
 int FileClient::SYNCCLOSE(const RequestTokens &Request) {
+    if (Request.size() < 2) {
+        return -1;
+    }
     // find the fd
     int &fd = NameToFd[Request.at(1)];
     // no fd found, open the file
@@ -376,6 +410,9 @@ std::string FileClient::SyncRequestBuilder(const RequestTokens &Request) {
     }
     if (OriginalHead == "FREAD") {
         sRequest += "SYNCREAD ";
+    }
+    if (OriginalHead == "FCLOSE") {
+        sRequest += "SYNCCLOSE ";
     }
     // file location
     char *id{Request.at(1)};

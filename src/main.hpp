@@ -23,7 +23,6 @@
 #include "components/ServerExceptions.hpp"
 #include "components/ServerResponse.hpp"
 #include "components/ShellClient.hpp"
-#include "components/SyncPoint.hpp"
 #include "threads/ThreadsMan.hpp"
 
 struct OptParsed {
@@ -51,7 +50,7 @@ void ShellCallback(const int);
 void FileCallback(const int);
 // repilica handler
 std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
-    const std::string &SyncRequest, const std::string RequestType);
+    const std::string &SyncRequest, const std::string RequestType = "FF") noexcept(false);
 /**
  *  Misc
  * */
