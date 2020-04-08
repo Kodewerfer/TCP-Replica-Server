@@ -4,7 +4,7 @@ std::map<std::string, std::string> ServerResponse::ERROR_CODES{
     {"ERPIP", "Error Creating The Pipe"},
     {"ER-F-OP", "Error Opening The File"},
     {"ERSHL", "Shell Command Dose Not Exists"},
-    {"ER-SYNC", "Sync Failed"},
+    {"ER-SYNC", "Majority Vote Did Not Achieved"},
     {"ER-SYNC-SOK", "Connection Socket Error"},
     {"ER-SYNC-CONN", "Connection To Peers Failed"}};
 
@@ -106,4 +106,16 @@ void ServerResponse::syncFail(const std::string &code) {
 void ServerResponse::syncFail() {
     std::string Payload = "SYNC FAIL ";
     sendPayload(Payload);
+}
+
+void ServerResponse::PeerContents(const std::vector<std::string> &PeersContent) {
+    if (PeersContent.size() < 1) {
+        return;
+    }
+
+    for (const auto PeerReads : PeersContent) {
+        std::string Payload = "PE ";
+        Payload += PeerReads;
+        sendPayload(Payload);
+    }
 }

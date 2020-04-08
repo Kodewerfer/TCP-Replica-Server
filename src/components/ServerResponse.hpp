@@ -34,8 +34,10 @@ class ServerResponse {
     // Failed only, used in catch
     void fail(const std::string &ServerCode);
     // Sync fail special, called alone.
-     // ** unused for now **
+    // ** unused for now **
     void syncFail();
-    // display failed reason   
+    // display failed reason
     void syncFail(const std::string &);
+    // display peers' read content one by one
+    void PeerContents(const std::vector<std::string> &);
 };

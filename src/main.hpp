@@ -49,7 +49,7 @@ void CreateThreads(ServerSockets &ServSockets, OptParsed &,
 void ShellCallback(const int);
 void FileCallback(const int);
 // repilica handler
-std::function<bool(const int &, const std::string &ResponseMessage)> HandleSync(
+std::function<bool(const int &, const std::string &FromFREAD, std::vector<std::string> &outPeerContent)> HandleSync(
     const std::string &SyncRequest, const std::string RequestType = "FF") noexcept(false);
 /**
  *  Misc

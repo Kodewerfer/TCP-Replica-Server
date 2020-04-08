@@ -200,7 +200,7 @@ void FileCallback(const int iServFD) {
         int iOPResult{NO_VALID_COM};
         // content read by FREAD, can be empty.
         std::string FromFREAD{" "};
-        std::function<bool(const int &, const std::string &)> SyncCallback;
+        std::function<bool(const int &, const std::string &, std::vector<std::string> &)> SyncCallback;
         //
         try {
             /**
@@ -226,17 +226,19 @@ void FileCallback(const int iServFD) {
             // FREAD
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
-                iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD, true);
+                // DIFFERENT LOGIC DIFFERENT SYNC
+                // iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD, true);
+
+                // local running.
+                iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD);
                 // sync wouldn't run if local request reported error
                 if (bSendSyncRequests && iOPResult >= 0) {
                     // Build the sync request
                     std::string SyncRequest =
                         NewClient.SyncRequestBuilder(RequestTokenized);
                     // send the sync requests.
-                    SyncCallback = HandleSync(SyncRequest, "SEMI");
+                    SyncCallback = HandleSync(SyncRequest, "READ");
                 }
-                // actual local running.
-                iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD);
             }
             // FWRITE
             if (strcmp(TheCommand, "FWRITE") == 0) {
@@ -292,8 +294,12 @@ void FileCallback(const int iServFD) {
             if (bSendSyncRequests && SyncCallback != nullptr) {
                 // origin of the sync requests.
                 // pass on the result from local operation.
-                if (SyncCallback(iOPResult, FromFREAD)) {
+                std::vector<std::string> PeerContents;
+                if (SyncCallback(iOPResult, FromFREAD, PeerContents)) {
                     NewRes.file(iOPResult, FromFREAD);
+                    if (PeerContents.size() > 0) {
+                        NewRes.PeerContents(PeerContents);
+                    }
                 } else {
                     throw SyncException("ER-SYNC");
                 }
@@ -315,7 +321,7 @@ void FileCallback(const int iServFD) {
     ServerUtils::buoy("Connection closed: Flie Client");
 }
 
-std::function<bool(const int &, const std::string &Message)> HandleSync(
+std::function<bool(const int &, const std::string &Message, std::vector<std::string> &outContent)> HandleSync(
     const std::string &request, const std::string ReqType) {
     //
     typedef std::future<std::string> PeerFuture;
@@ -369,7 +375,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
     // Get results all in one.
     /* unable to use range based for because the copy constructor for
     furture is deleted. */
-    if (ReqType == "SEMI") {
+    if (ReqType == "READ") {
         for (int i = 0; i < PSTash.size(); i++) {
             std::string res = PSTash.at(i).get();
 
@@ -381,14 +387,14 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
 
     // fire and forget, for one-phase commits.
     if (ReqType == "FF") {
-        return [ResStash](const int &OPResult, const std::string &Message) {
+        return [ResStash](const int &OPResult, const std::string &FromFREAD, std::vector<std::string> &outPeerContent) {
             return true;
         };
     }
 
     // involves checking the result.
-    if (ReqType == "SEMI") {
-        return [ResStash](const int &OPResult, const std::string &Message) {
+    if (ReqType == "READ") {
+        return [ResStash](const int &OPResult, const std::string &FromFREAD, std::vector<std::string> &outPeerContent) {
             int Vote{OPResult >= 0 ? 1 : 0};
             const int PeersNumber{(const int)ResStash.size()};
             const int Total{OPResult >= 0 ? PeersNumber + 1 : PeersNumber};
@@ -421,6 +427,7 @@ std::function<bool(const int &, const std::string &Message)> HandleSync(
 
                 if (iPeerBytesRead >= 0) {
                     ++Vote;
+                    outPeerContent.push_back(Tokenized.at(1) + " " + Tokenized.at(2));
                 }
             }
 
