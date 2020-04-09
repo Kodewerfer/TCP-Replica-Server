@@ -48,7 +48,8 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
         }
 
         ServerUtils::buoy("execve - program cannot be found");
-        exit(-2);
+
+        _exit(-2);
     } else {
         // parent process
 
@@ -56,14 +57,19 @@ int ShellClient::RunShellCommand(std::vector<char *> &RequestTokenized) {
         ResetLastOutput();
 
         // Read the output from the child
-        char ReadBuffer[1024 + 1];
-        memset(ReadBuffer, 0, 1024);
+        char ReadBuffer[1024 + 1]{0};
 
         close(TheLine[1]);
-        while (read(TheLine[0], ReadBuffer, sizeof(ReadBuffer)) != 0) {
+        int n{0};
+
+        std::string sOutput;
+        // while ((n = read(TheLine[0], ReadBuffer, sizeof(ReadBuffer))) != 0) {
+        while ((n = Lib::readline(TheLine[0], sOutput, sizeof(ReadBuffer))) >
+               0) {
             // record the output to last output.
-            std::string sOutput(ReadBuffer);
-            sLastOutput = sOutput;
+            // std::string sOutput(ReadBuffer);
+            ServerUtils::rowdy(sOutput);
+            this->sLastOutput += (sOutput + "\n");
         }
 
         waitpid(iPId, &ExecStat, 0);

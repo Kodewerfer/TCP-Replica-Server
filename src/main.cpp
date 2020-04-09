@@ -437,7 +437,7 @@ HandleSync(const std::string &request, const std::string ReqType) {
                 //     ++Vote;
                 // }
 
-                if (iPeerBytesRead >= 0) {
+                if (iPeerBytesRead > 0) {
                     ++Vote;
                     outPeerContent.push_back(Tokenized.at(1) + " " +
                                              Tokenized.at(2));
@@ -651,4 +651,4 @@ void HandleSIGHUP(int sig) {
     ServerUtils::rowdy("Server Restarted");
 
     return;
-};
+}
