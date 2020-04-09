@@ -1,6 +1,7 @@
 #include "ServerUtils.hpp"
 
-std::mutex ServerUtils::ServerActionMutex;
+// std::mutex ServerUtils::ServerActionMutex;
+// std::atomic<bool> ServerUtils::bServerRestarting{false};
 ServerSockets ServerUtils::SocketReference;
 ServerPorts ServerUtils::PortsReference;
 std::atomic<bool> ServerUtils::bSIGHUPReceived{false};

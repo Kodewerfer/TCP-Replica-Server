@@ -44,7 +44,8 @@ class ServerUtils {
     static std::atomic<bool> bSIGHUPReceived;
 
    public:
-    static std::mutex ServerActionMutex;
+    // static std::mutex ServerActionMutex;
+    // static std::atomic<bool> bServerRestarting;
     static bool bRunningBackground;
     static bool bIsDebugging;
     static bool bIsNoisy;

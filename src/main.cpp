@@ -1,9 +1,10 @@
 #include "main.hpp"
 
-#define SHELL_DEFAULT 9000;
-#define FILE_DEFAULT 9001;
-#define THREAD_INCR_DEFAULT 2;
-#define THREAD_MAX_DEFAULT 4;
+// Default serve configs
+constexpr int SHELL_DEFAULT{9000};
+constexpr int FILE_DEFAULT{9001};
+constexpr int THREAD_INCR_DEFAULT{2};
+constexpr int THREAD_MAX_DEFAULT{4};
 
 int main(int arg, char *argv_main[], char *envp[]) {
     OptParsed FromOpts = ParsOpt(arg, argv_main, "f:s:T:t:p:dDv");
@@ -38,14 +39,15 @@ int main(int arg, char *argv_main[], char *envp[]) {
     while (true) {
         ThreadsMan::NeedMoreThreads.wait(Locker, [FromOpts]() {
             // lambda "guard" for the condition.
-            const int MaxThread = FromOpts.tincr + FromOpts.tmax;
-            bool bAllThreadsActive =
-                ThreadsMan::getThreadsCount() == ThreadsMan::getActiveThreads();
-            bool bLimitNotReached = ThreadsMan::getThreadsCount() < MaxThread;
+            const int MaxThread{FromOpts.tincr + FromOpts.tmax};
+            const bool bAllThreadsActive{ThreadsMan::getThreadsCount() ==
+                                         ThreadsMan::getActiveThreads()};
 
-            bool bSigHup = ServerUtils::trySighupFlag();
+            const bool bSigHup{ServerUtils::trySighupFlag()};
 
-            return (bSigHup || (bAllThreadsActive && bLimitNotReached));
+            bool bLimitNotReached{ThreadsMan::getThreadsCount() < MaxThread};
+
+            return ((bSigHup || bAllThreadsActive) && bLimitNotReached);
         });
 
         ServerUtils::rowdy("Main thread awaken, creating threads...");
@@ -593,9 +595,31 @@ void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
     ServerUtils::buoy("Server Quiting... ");
 
-    // LOCKING
-    std::lock_guard<std::mutex> CritialActionLock(
-        ServerUtils::ServerActionMutex);
+    // set the flag
+    ThreadsMan::KillIdleThreads();
+
+    // close master sockets.
+    ServerSockets Socks = ServerUtils::getSocketsRefList();
+
+    shutdown(Socks.shell, SHUT_RD);
+    close(Socks.shell);
+
+    shutdown(Socks.file, SHUT_RD);
+    close(Socks.file);
+
+    // Kill all on going connections.
+    ThreadsMan::CloseAllSSocks();
+
+    FileClient::CleanUp();
+
+    // std::this_thread::sleep_for(std::chrono::seconds(1));
+    // QUIT
+    _Exit(EXIT_SUCCESS);
+}
+
+void HandleSIGHUP(int sig) {
+    ServerUtils::rowdy("SIGHUP");
+    ServerUtils::buoy("Server Restarting... ");
 
     // set the flag
     ThreadsMan::KillIdleThreads();
@@ -615,46 +639,16 @@ void HandleSIGQUIT(int sig) {
     FileClient::CleanUp();
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    // QUIT
-    _Exit(EXIT_SUCCESS);
-}
-
-void HandleSIGHUP(int sig) {
-    ServerUtils::rowdy("SIGHUP");
-    ServerUtils::buoy("Server Restarting... ");
-
-    // LOCKING
-    std::lock_guard<std::mutex> CritialActionLock(
-        ServerUtils::ServerActionMutex);
-
-    // set the flag
-    ThreadsMan::KillIdleThreads();
-
-    // close master sockets.
-    ServerSockets Socks = ServerUtils::getSocketsRefList();
-
-    shutdown(Socks.shell, SHUT_RD);
-    close(Socks.shell);
-
-    shutdown(Socks.file, SHUT_RD);
-    close(Socks.file);
-
-    // Kill all on going connections.
-    ThreadsMan::CloseAllSSocks();
-
-    FileClient::CleanUp();
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // clean up operations
     ThreadsMan::RestThreadsCounters();
 
     ThreadsMan::StopKillIdles();
     StartServer();
-    // std::this_thread::sleep_for(std::chrono::milliseconds(300));
     // create threads
     ServerUtils::setSigHupFlag();
     ThreadsMan::NeedMoreThreads.notify_one();
     ServerUtils::rowdy("Server Restarted");
+
     return;
 };
