@@ -23,31 +23,28 @@
 
 #include "components/ServerExceptions.hpp"
 
-struct ServerSockets
-{
+struct ServerSockets {
     int shell;
     int file;
 };
 
-struct ServerPorts
-{
+struct ServerPorts {
     int shell;
     int file;
 };
 
-struct AcceptedSocket
-{
+struct AcceptedSocket {
     int accepted{-1};
     int newsocket{-1};
 };
 
-class ServerUtils
-{
-private:
+class ServerUtils {
+   private:
     static ServerSockets SocketReference;
     static std::atomic<bool> bSIGHUPReceived;
 
-public:
+   public:
+    static std::mutex ServerActionMutex;
     static bool bRunningBackground;
     static bool bIsDebugging;
     static bool bIsNoisy;
@@ -56,7 +53,7 @@ public:
     static ServerPorts PortsReference;
     static std::vector<sockaddr_in> PeersAddrs;
 
-public:
+   public:
     /**
      * Dynamci reconfig
      *   */

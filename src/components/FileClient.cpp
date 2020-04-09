@@ -50,11 +50,9 @@ int FileClient::FDChcker(int fd) {
     }
     bool bFound{false};
     for (auto ele : OpenedFiles) {
-        if (fd == ele)
-            bFound = true;
+        if (fd == ele) bFound = true;
     }
-    if (!bFound)
-        return NO_SUCH_FILE;
+    if (!bFound) return NO_SUCH_FILE;
     return 0;
 }
 
@@ -117,7 +115,7 @@ int FileClient::FSEEK(const RequestTokens &Request) {
         return (Control.writing < 1 && !Control.bIsClosing);
     });
     //
-    Control.reading += 1;
+    ++Control.reading;
     if (lseek(Req.fd, Req.params, SEEK_CUR) <= 0) {
         res = -1;
     }
@@ -146,8 +144,7 @@ int FileClient::FREAD(const RequestTokens &Request, std::string &outRedContent,
         so that the SyncRequestBuilder can operate normally.
      */
 
-    if (CheckOnly)
-        return 1;  // or it would be one of the negatives from above.
+    if (CheckOnly) return 1;  // or it would be one of the negatives from above.
 
     // file access control
     std::string FileName = FdToName[Req.fd];
@@ -169,7 +166,7 @@ int FileClient::FREAD(const RequestTokens &Request, std::string &outRedContent,
 
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is reading.");
 
-    Control.reading += 1;
+    ++Control.reading;
 
     if (bIsDebugging) {
         sleep(3);
@@ -226,7 +223,7 @@ int FileClient::FWRITE(const RequestTokens &Request) {
     std::lock_guard<std::mutex> WriteGuard(Control.writeLock);
 
     // Critial region
-    Control.writing += 1;
+    ++Control.writing;
 
     ServerUtils::rowdy("Thread " + ServerUtils::GetTID() + " is writing.");
 
@@ -267,8 +264,7 @@ int FileClient::FCLOSE(const RequestTokens &Request, bool checkOnly) {
         Only run the checking part of this op,
         so that the SyncRequestBuilder can operate normally.
      */
-    if (checkOnly)
-        return 1;
+    if (checkOnly) return 1;
 
     // Access control
     std::string FileName = FdToName[fd];

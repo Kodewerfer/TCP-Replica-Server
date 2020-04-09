@@ -108,7 +108,7 @@ void ServerResponse::syncFail() {
     sendPayload(Payload);
 }
 
-void ServerResponse::PeerContents(const std::vector<std::string> &PeersContent) {
+void ServerResponse::peers(const std::vector<std::string> &PeersContent) {
     if (PeersContent.size() < 1) {
         return;
     }

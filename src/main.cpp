@@ -180,8 +180,7 @@ void FileCallback(const int iServFD) {
 
     // if the server is syncing with other.
     const bool bSendSyncRequests{ServerUtils::PeersAddrs.size() > 0};
-    if (bSendSyncRequests)
-        WelcomeMsg += "Running In Replica mode. \n";
+    if (bSendSyncRequests) WelcomeMsg += "Running In Replica mode. \n";
 
     /* send welcome messages.
     no message if in replica mode */
@@ -200,7 +199,9 @@ void FileCallback(const int iServFD) {
         int iOPResult{NO_VALID_COM};
         // content read by FREAD, can be empty.
         std::string FromFREAD{" "};
-        std::function<bool(const int &, const std::string &, std::vector<std::string> &)> SyncCallback;
+        std::function<bool(const int &iOPResult, const std::string &FromFREAD,
+                           std::vector<std::string> &outPeerContent)>
+            SyncCallback;
         //
         try {
             /**
@@ -227,7 +228,8 @@ void FileCallback(const int iServFD) {
             if (strcmp(TheCommand, "FREAD") == 0) {
                 // read request return file content in an out param.
                 // DIFFERENT LOGIC DIFFERENT SYNC
-                // iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD, true);
+                // iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD,
+                // true);
 
                 // local running.
                 iOPResult = NewClient.FREAD(RequestTokenized, FromFREAD);
@@ -278,8 +280,7 @@ void FileCallback(const int iServFD) {
             }
 
             if (strcmp(TheCommand, "SYNCREAD") == 0) {
-                iOPResult =
-                    NewClient.SYNCREAD(RequestTokenized, FromFREAD);
+                iOPResult = NewClient.SYNCREAD(RequestTokenized, FromFREAD);
             }
             if (strcmp(TheCommand, "SYNCWRITE") == 0) {
                 iOPResult = NewClient.SYNCWRITE(RequestTokenized);
@@ -294,11 +295,11 @@ void FileCallback(const int iServFD) {
             if (bSendSyncRequests && SyncCallback != nullptr) {
                 // origin of the sync requests.
                 // pass on the result from local operation.
-                std::vector<std::string> PeerContents;
-                if (SyncCallback(iOPResult, FromFREAD, PeerContents)) {
+                std::vector<std::string> PeersContent;
+                if (SyncCallback(iOPResult, FromFREAD, PeersContent)) {
                     NewRes.file(iOPResult, FromFREAD);
-                    if (PeerContents.size() > 0) {
-                        NewRes.PeerContents(PeerContents);
+                    if (PeersContent.size() > 0) {
+                        NewRes.peers(PeersContent);
                     }
                 } else {
                     throw SyncException("ER-SYNC");
@@ -321,13 +322,17 @@ void FileCallback(const int iServFD) {
     ServerUtils::buoy("Connection closed: Flie Client");
 }
 
-std::function<bool(const int &, const std::string &Message, std::vector<std::string> &outContent)> HandleSync(
-    const std::string &request, const std::string ReqType) {
+std::function<bool(const int &, const std::string &,
+                   std::vector<std::string> &)>
+HandleSync(const std::string &request, const std::string ReqType) {
     //
     typedef std::future<std::string> PeerFuture;
 
     std::vector<PeerFuture> PSTash;
     std::vector<std::string> ResStash;
+
+    // Time out for poll actions
+    const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 15000 : 5000};
 
     // Sync With Peers
     for (auto PeerAddress : ServerUtils::PeersAddrs) {
@@ -353,14 +358,15 @@ std::function<bool(const int &, const std::string &Message, std::vector<std::str
             send(PeerSock, request.c_str(), request.size(), 0);
             shutdown(PeerSock, SHUT_WR);
             // Poll response
-            const int POLL_TIME_OUT{ServerUtils::bIsDebugging ? 30000 : 10000};
+
             int n = Lib::recv_nonblock(PeerSock, buffer, 256, POLL_TIME_OUT);
 
             if (n <= 0) {
                 if (n == 0)
                     ServerUtils::rowdy("Peer No data, shutting connection...");
                 if (n < 0)
-                    ServerUtils::rowdy("Peer timed out, shutting connection...");
+                    ServerUtils::rowdy(
+                        "Peer timed out, shutting connection...");
             } else {
                 ServerUtils::rowdy("Done, shutting connection...");
             }
@@ -387,14 +393,16 @@ std::function<bool(const int &, const std::string &Message, std::vector<std::str
 
     // fire and forget, for one-phase commits.
     if (ReqType == "FF") {
-        return [ResStash](const int &OPResult, const std::string &FromFREAD, std::vector<std::string> &outPeerContent) {
+        return [ResStash](const int &OPResult, const std::string &FromFREAD,
+                          std::vector<std::string> &outPeerContent) {
             return true;
         };
     }
 
     // involves checking the result.
     if (ReqType == "READ") {
-        return [ResStash](const int &OPResult, const std::string &FromFREAD, std::vector<std::string> &outPeerContent) {
+        return [ResStash](const int &OPResult, const std::string &FromFREAD,
+                          std::vector<std::string> &outPeerContent) {
             int Vote{OPResult >= 0 ? 1 : 0};
             const int PeersNumber{(const int)ResStash.size()};
             const int Total{OPResult >= 0 ? PeersNumber + 1 : PeersNumber};
@@ -420,19 +428,21 @@ std::function<bool(const int &, const std::string &Message, std::vector<std::str
                     ServerUtils::buoy(e.what());
                     continue;
                 }
-                // read bits and content must be the same.
-                // if (iPeerBytesRead == OPResult && Message == Tokenized.at(2)) {
+
+                // read bytes and content must be the same.
+                // if (iPeerBytesRead == OPResult && Message == Tokenized.at(2))
+                // {
                 //     ++Vote;
                 // }
 
                 if (iPeerBytesRead >= 0) {
                     ++Vote;
-                    outPeerContent.push_back(Tokenized.at(1) + " " + Tokenized.at(2));
+                    outPeerContent.push_back(Tokenized.at(1) + " " +
+                                             Tokenized.at(2));
                 }
             }
 
-            if (Vote == Total || Vote > (Total / 2))
-                return true;
+            if (Vote == Total || Vote > (Total / 2)) return true;
             return false;
         };
     }
@@ -455,32 +465,28 @@ OptParsed ParsOpt(int argc, char **argv, const char *optstring) {
             case 's': {
                 // shell port
                 int temp = atoi(optarg);
-                if (temp > 0)
-                    iShPort = temp;
+                if (temp > 0) iShPort = temp;
 
                 break;
             }
             case 'f': {
                 // file port
                 int temp = atoi(optarg);
-                if (temp > 0)
-                    iFiPort = temp;
+                if (temp > 0) iFiPort = temp;
 
                 break;
             }
             case 't': {
                 // t incr
                 int temp = atoi(optarg);
-                if (temp > 0)
-                    iThreadIncr = temp;
+                if (temp > 0) iThreadIncr = temp;
 
                 break;
             }
             case 'T': {
                 // t max
                 int temp = atoi(optarg);
-                if (temp > 0)
-                    iThreadMax = temp;
+                if (temp > 0) iThreadMax = temp;
 
                 break;
             }
@@ -553,14 +559,11 @@ void daemonize() {
     /* Fork off the parent process */
     pid = fork();
 
-    if (pid < 0)
-        exit(EXIT_FAILURE);
+    if (pid < 0) exit(EXIT_FAILURE);
 
-    if (pid > 0)
-        exit(EXIT_SUCCESS);
+    if (pid > 0) exit(EXIT_SUCCESS);
 
-    if (setsid() < 0)
-        exit(EXIT_FAILURE);
+    if (setsid() < 0) exit(EXIT_FAILURE);
 
     signal(SIGCHLD, SIG_IGN);
     // signal(SIGHUP, SIG_IGN);
@@ -568,11 +571,9 @@ void daemonize() {
     /* Fork off for the second time*/
     pid = fork();
 
-    if (pid < 0)
-        exit(EXIT_FAILURE);
+    if (pid < 0) exit(EXIT_FAILURE);
 
-    if (pid > 0)
-        exit(EXIT_SUCCESS);
+    if (pid > 0) exit(EXIT_SUCCESS);
 
     // file permission
     umask(0);
@@ -591,6 +592,10 @@ void daemonize() {
 void HandleSIGQUIT(int sig) {
     ServerUtils::rowdy("SIGQUIT ");
     ServerUtils::buoy("Server Quiting... ");
+
+    // LOCKING
+    std::lock_guard<std::mutex> CritialActionLock(
+        ServerUtils::ServerActionMutex);
 
     // set the flag
     ThreadsMan::KillIdleThreads();
@@ -617,6 +622,10 @@ void HandleSIGQUIT(int sig) {
 void HandleSIGHUP(int sig) {
     ServerUtils::rowdy("SIGHUP");
     ServerUtils::buoy("Server Restarting... ");
+
+    // LOCKING
+    std::lock_guard<std::mutex> CritialActionLock(
+        ServerUtils::ServerActionMutex);
 
     // set the flag
     ThreadsMan::KillIdleThreads();

@@ -39,5 +39,5 @@ class ServerResponse {
     // display failed reason
     void syncFail(const std::string &);
     // display peers' read content one by one
-    void PeerContents(const std::vector<std::string> &);
+    void peers(const std::vector<std::string> &);
 };

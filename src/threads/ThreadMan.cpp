@@ -15,10 +15,10 @@ bool ThreadsMan::tryThreadQuitting() {
         return false;
     }
     bThreadQuitSwitch = true;
-    QuitingThreads += 1;
+    ++QuitingThreads;
+    --ThreadsCount;
     if (QuitingThreads == T_incr) {
         bThreadQuitSwitch = false;
-        ThreadsCount -= QuitingThreads;
         QuitingThreads = 0;
     }
     return true;
@@ -51,10 +51,10 @@ void ThreadsMan::CloseAllSSocks() {
 // std::vector<std::thread> ThreadsMan::ThreadStash;
 std::condition_variable ThreadsMan::NeedMoreThreads;
 
-void ThreadsMan::ThreadCreated() { ThreadsCount += 1; }
+void ThreadsMan::ThreadCreated() { ++ThreadsCount; }
 
 void ThreadsMan::setActiveAndNotify() {
-    ActiveThreads += 1;
+    ++ActiveThreads;
     ServerUtils::rowdy("A Threads is Active.");
     ServerUtils::rowdy("Threads Count now : " +
                        std::to_string(getThreadsCount()));
@@ -92,7 +92,7 @@ void ThreadsMan::ForeRunner(ServerSockets ServSockets,
 
     int iSockets[2]{ServSockets.shell, ServSockets.file};
     //
-    const int POLL_TIME_OUT{60000};
+    const int POLL_TIME_OUT{10000};
 
     /** Thread's main loop
      *  - handle client
